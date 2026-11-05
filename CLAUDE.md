@@ -2,11 +2,13 @@
 
 Idle 3D-арена 5 на 5. Клиент на Godot 4, API на своём VPS.
 
+Это те же правила, что в AGENTS.md. Меняй оба файла вместе.
+
 ## Где код
 
 - `client/` — Godot. Сцены, скрипты, GLB героев.
 - `server/` — один API и Postgres. Снаружи его видно только через nginx.
-- `.claude/skills/` — скиллы Claude Code. Подгружаются по задаче, не все сразу.
+- `.claude/skills/` — скиллы Claude Code. Те же тексты, что в `.agents/skills/`.
 
 ## Правила, которые действуют всегда
 
@@ -19,3 +21,4 @@ Idle 3D-арена 5 на 5. Клиент на Godot 4, API на своём VPS.
 ## Как звать скиллы
 
 `/skills` показывает список. Точечно: `/auto-battle`, `/meshy-godot`, `/idle-server`.
+Если меняешь скилл, правь тот же текст в `.agents/skills/<имя>/SKILL.md`.
