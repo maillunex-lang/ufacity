@@ -1,5 +1,30 @@
 extends Node3D
 
+const MODEL_FILE := {
+	"TEMP_A": "swordsman",
+	"TEMP_B": "priest",
+	"temp_a": "swordsman",
+	"temp_b": "priest",
+	"swordsman": "swordsman",
+	"priest": "priest",
+}
+
+const CLIP_ALIAS := {
+	"swordsman": {
+		"idle": "Idle_9",
+		"attack": "Thrust_Slash",
+		"skill": "Jump_and_Slam_Back_Down",
+		"death": "Dead",
+	},
+	"priest": {
+		"idle": "Idle_11",
+		"attack": "Attack",
+		"skill": "Charged_Spell_Cast",
+		"hit": "Hit_Reaction",
+		"death": "Dead",
+	},
+}
+
 const LOG_PATH := "res://data/sample_log.json"
 
 var _units := {}
@@ -93,9 +118,11 @@ func _home(id: String) -> Vector3:
 func _spawn(id: String, model: String, max_hp: int) -> void:
 	var root := Node3D.new()
 	root.position = _home(id)
+	root.set_meta("model_id", _file_id(model))
 	root.set_meta("hp", max_hp)
 	root.set_meta("max_hp", max_hp)
 	var used_glb := _attach_glb(root, model)
+	root.set_meta("has_glb", used_glb)
 	if not used_glb:
 		var mesh := MeshInstance3D.new()
 		var capsule := CapsuleMesh.new()
@@ -109,9 +136,9 @@ func _spawn(id: String, model: String, max_hp: int) -> void:
 		root.add_child(mesh)
 	var label := Label3D.new()
 	label.name = "Hp"
-	label.text = "TEMP %s\n%d/%d" % [model if not used_glb else model, max_hp, max_hp]
-	if used_glb:
-		label.text = "%s\n%d/%d" % [model, max_hp, max_hp]
+	label.text = "%s\n%d/%d" % [_file_id(model), max_hp, max_hp]
+	if not used_glb:
+		label.text = "TEMP %s\n%d/%d" % [model, max_hp, max_hp]
 	label.position = Vector3(0, 2.1, 0)
 	label.font_size = 42
 	root.add_child(label)
@@ -120,8 +147,12 @@ func _spawn(id: String, model: String, max_hp: int) -> void:
 	_play(root, "idle")
 
 
+func _file_id(model: String) -> String:
+	return str(MODEL_FILE.get(model, model))
+
+
 func _attach_glb(root: Node3D, model: String) -> bool:
-	var path := "res://assets/heroes/%s.glb" % model
+	var path := "res://assets/heroes/%s.glb" % _file_id(model)
 	if not ResourceLoader.exists(path):
 		return false
 	var packed = load(path)
@@ -140,11 +171,9 @@ func _apply(event: Dictionary) -> void:
 			return
 		var to: Array = event.get("to", [0, 0, 0])
 		unit.position = Vector3(float(to[0]), float(to[1]), float(to[2]))
-		_play(unit, "move")
 	elif kind == "attack" or kind == "heal":
 		var src = _units.get(str(event.get("src", "")))
 		if src != null:
-			src.scale = Vector3(1.12, 1.12, 1.12)
 			_play(src, "attack" if kind == "attack" else "skill")
 		var dst = _units.get(str(event.get("dst", "")))
 		if dst != null and event.has("hp"):
@@ -155,7 +184,8 @@ func _apply(event: Dictionary) -> void:
 	elif kind == "down":
 		var unit = _units.get(str(event.get("unit", "")))
 		if unit != null:
-			unit.rotation.z = 1.4
+			if not bool(unit.get_meta("has_glb")):
+				unit.rotation.z = 1.4
 			_play(unit, "death")
 
 
@@ -173,8 +203,13 @@ func _play(root: Node, clip: String) -> void:
 	var player := _find_player(root)
 	if player == null:
 		return
-	if player.has_animation(clip):
-		player.play(clip)
+	var model := str(root.get_meta("model_id", ""))
+	var table: Dictionary = CLIP_ALIAS.get(model, {})
+	var actual := str(table.get(clip, ""))
+	if actual == "":
+		actual = str(table.get("idle", clip))
+	if player.has_animation(actual):
+		player.play(actual)
 	elif player.has_animation("idle"):
 		player.play("idle")
 

@@ -7,9 +7,9 @@ import random
 from app.battle import simulate
 
 HEROES = {
-    "temp_a": {"model": "TEMP_A", "role": "tank", "rarity": "common", "hp": 120, "atk": 20, "def": 6, "speed": 1},
-    "temp_b": {"model": "TEMP_B", "role": "ranger", "rarity": "common", "hp": 90, "atk": 16, "def": 3, "speed": 1},
-    "temp_c": {"model": "TEMP_A", "role": "healer", "rarity": "uncommon", "hp": 100, "atk": 12, "def": 4, "speed": 1},
+    "temp_a": {"model": "swordsman", "role": "tank", "rarity": "common", "hp": 120, "atk": 20, "def": 6, "speed": 1},
+    "temp_b": {"model": "priest", "role": "ranger", "rarity": "common", "hp": 90, "atk": 16, "def": 3, "speed": 1},
+    "temp_c": {"model": "priest", "role": "healer", "rarity": "uncommon", "hp": 100, "atk": 12, "def": 4, "speed": 1},
 }
 
 IDLE_CAP = 8 * 3600

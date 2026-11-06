@@ -3,8 +3,8 @@ extends Control
 const PAGES := [
 	["city", "Город", "Рисунок-заглушка. Финального арта города нет."],
 	["campaign", "Кампания", "Сервер умеет сам прогнать стадию и выдать золото только после своей победы. Эта кнопка пока открывает локальный просмотр лога и ничего не начисляет."],
-	["heroes", "Герои", "Две временные карточки. Прокачка, редкость и экипировка не работают."],
-	["preview", "3D-просмотр", "Если в assets/heroes лежит GLB с именем модели, бой его подхватит. Сейчас моделей нет."],
+	["heroes", "Герои", "Мечник и жрец уже лежат файлами. Прокачка, редкость и экипировка на этом экране не работают."],
+	["preview", "3D-просмотр", "Бой подставляет swordsman.glb и priest.glb. В редакторе Godot импорт ещё не открывали, поэтому масштаб мог остаться сантиметровым."],
 	["formation", "Отряд", "Пять мест: два спереди, три сзади. На сервер это пока не отправляется."],
 	["inventory", "Инвентарь", "Шесть слотов и артефакт ещё не работают."],
 	["summon", "Призыв", "Сервер крутит призыв за своё золото. Этот экран кнопку сервера не вызывает, поэтому ничего не выдаёт."],
@@ -20,7 +20,7 @@ var _title: Label
 var _body: RichTextLabel
 var _page := "city"
 var _slots: Array[Button] = []
-var _picked := ["TEMP_A", "TEMP_A", "TEMP_A", "TEMP_A", "TEMP_A"]
+var _picked := ["swordsman", "swordsman", "priest", "priest", "priest"]
 
 
 func _ready() -> void:
@@ -83,7 +83,7 @@ func _show(page: String) -> void:
 			get_tree().change_scene_to_file("res://scenes/battle.tscn")
 		)
 	elif page == "heroes":
-		_body.append_text("TEMP_A, танк. Редкость не назначена.\nTEMP_B, стрелок. Редкость не назначена.\n")
+		_body.append_text("Мечник, слоты ближнего боя. Жрец, дальние слоты. Редкость не показана на экране.\n")
 		_add_action("3D-просмотр", func() -> void: _show("preview"))
 	elif page == "formation":
 		_formation()
@@ -136,13 +136,13 @@ func _formation() -> void:
 		button.size = Vector2(420, 68)
 		var index := i
 		button.pressed.connect(func() -> void:
-			_picked[index] = "TEMP_B" if _picked[index] == "TEMP_A" else "TEMP_A"
+			_picked[index] = "priest" if _picked[index] == "swordsman" else "swordsman"
 			_show("formation")
 		)
 		button.set_meta("shell_extra", true)
 		add_child(button)
 		_slots.append(button)
-	_body.append_text("Нажатие меняет TEMP_A и TEMP_B. Это не сохранение и не выдача героя.\n")
+	_body.append_text("Нажатие меняет мечника и жреца. Это не сохранение и не выдача героя.\n")
 
 
 func _show_more() -> void:
