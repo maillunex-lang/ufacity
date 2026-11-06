@@ -5,13 +5,17 @@ const LIMIT := 20.0
 const MELEE_RANGE := 1.6
 const RANGED_RANGE := 6.0
 const STEP := 1.4
-const SLOTS := {
-	0: Vector2(2.8, 3.6),
-	1: Vector2(-2.8, 3.6),
-	2: Vector2(5.6, 7.2),
-	3: Vector2(0.0, 7.6),
-	4: Vector2(-5.6, 7.2),
-}
+static var _slot_rows: Array = []
+
+
+static func slot_vector(slot: int) -> Vector2:
+	if _slot_rows.is_empty():
+		var parsed = JSON.parse_string(FileAccess.get_file_as_string("res://data/formation.json"))
+		_slot_rows = parsed["slots"]
+		if _slot_rows.size() != 5:
+			push_error("formation.json must list 5 slots")
+	var row: Array = _slot_rows[slot]
+	return Vector2(float(row[0]), float(row[1]))
 
 static func fight(slots: Array, stage: int = 1, levels: Dictionary = {}) -> Dictionary:
 	var left: Array = []
@@ -162,7 +166,7 @@ static func _simulate(left: Array, right: Array, seed: int) -> Dictionary:
 
 static func _make(side: String, raw: Dictionary) -> Dictionary:
 	var slot := int(raw["slot"])
-	var spot: Vector2 = SLOTS[slot]
+	var spot: Vector2 = slot_vector(slot)
 	if side == "left":
 		spot.y = -spot.y
 	var max_hp := int(raw["hp"])

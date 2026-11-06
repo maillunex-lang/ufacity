@@ -33,7 +33,6 @@ var _units := {}
 var _events: Array = []
 var _cursor := 0
 var _time := 0.0
-var _result: Label
 var _winner := "draw"
 var _fought_stage := 1
 var _left_hp := 0
@@ -45,10 +44,16 @@ var _speed_note: Label
 var _paused := false
 var _pause_button: Button
 var _cards: Array = []
+var _shots: Array = []
+var _quiet := false
+var _result_panel: PanelContainer
+var _result_title: Label
+var _result_body: Label
 
 
 func _ready() -> void:
 	_make_arena()
+	_lay_marks()
 	_frame_camera()
 	get_viewport().size_changed.connect(_frame_camera)
 	_build_hud()
@@ -97,14 +102,15 @@ func _process(delta: float) -> void:
 	if _paused:
 		return
 	var scaled := delta * float(_rate)
+	_quiet = scaled > 0.4
 	_time += scaled
 	while _cursor < _events.size() and float(_events[_cursor].get("t", 0.0)) <= _time:
 		_apply(_events[_cursor])
 		_cursor += 1
-	if _cursor >= _events.size() and _events.size() > 0 and _result.visible == false:
-		_result.visible = true
+	if _cursor >= _events.size() and _events.size() > 0 and _result_panel.visible == false:
 		_commit_stage()
 	_slide(scaled)
+	_fx(delta)
 
 
 func _build_hud() -> void:
@@ -150,11 +156,7 @@ func _build_hud() -> void:
 	_speed_note.text = "Скорость x1"
 	_speed_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_speed_note)
-	_result = Label.new()
-	_result.visible = false
-	_result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_result.custom_minimum_size = Vector2(0, 80)
-	column.add_child(_result)
+	_build_result(margin)
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -188,10 +190,14 @@ func _build_hud() -> void:
 
 
 func _load_log() -> void:
-	_fought_stage = maxi(1, Roster.stage)
+	if Roster.replay_stage > 0:
+		_fought_stage = Roster.replay_stage
+		Roster.replay_stage = 0
+	else:
+		_fought_stage = maxi(1, Roster.stage)
 	var parsed: Dictionary = Sim.fight(Roster.slots, _fought_stage, Roster.levels())
 	for unit in parsed.get("units", []):
-		_spawn(str(unit["id"]), str(unit.get("model", "TEMP")), int(unit.get("max_hp", unit.get("hp", 1))))
+		_spawn(str(unit["id"]), str(unit.get("model", "TEMP")), int(unit.get("max_hp", unit.get("hp", 1))), str(unit.get("role", "")))
 	_events = parsed.get("events", [])
 	_winner = str(parsed.get("winner", "draw"))
 	_left_hp = 0
@@ -201,7 +207,6 @@ func _load_log() -> void:
 			_left_hp += int(unit["hp"])
 		else:
 			_right_hp += int(unit["hp"])
-	_result.text = "Стадия %d" % _fought_stage
 
 
 func _commit_stage() -> void:
@@ -210,45 +215,179 @@ func _commit_stage() -> void:
 	_stage_written = true
 	var title := "Ничья"
 	var note := "Стадия %d не изменилась." % _fought_stage
-	if _winner == "left":
+	if _winner == "left" and _fought_stage == Roster.stage:
 		Roster.advance_stage()
 		title = "Победа"
 		note = "Стадия %d пройдена. Дальше %d." % [_fought_stage, Roster.stage]
+	elif _winner == "left":
+		title = "Победа"
+		note = "Повтор стадии %d. Кампания остаётся на %d." % [_fought_stage, Roster.stage]
 	elif _winner == "right":
 		title = "Поражение"
-	_result.text = "%s\n%s\nСлева %d HP, справа %d HP. Золото не выдано." % [title, note, _left_hp, _right_hp]
+	_result_title.text = title
+	_result_body.text = "%s\nСлева %d HP, справа %d HP.\nЗолото не выдано." % [note, _left_hp, _right_hp]
+	_result_panel.visible = true
 
 
 func _home(id: String) -> Vector3:
 	var side := id.substr(0, 1)
 	var slot := int(id.substr(1))
-	var x := 0.0
-	var z := 0.0
-	match slot:
-		0:
-			x = 2.8
-			z = 3.6
-		1:
-			x = -2.8
-			z = 3.6
-		2:
-			x = 5.6
-			z = 7.2
-		3:
-			x = 0.0
-			z = 7.6
-		4:
-			x = -5.6
-			z = 7.2
+	var spot := Sim.slot_vector(slot)
+	var z := spot.y
 	if side == "L":
 		z = -z
-	return Vector3(x, 0, z)
+	return Vector3(spot.x, 0.0, z)
 
 
-func _spawn(id: String, model: String, max_hp: int) -> void:
+func _build_result(margin: MarginContainer) -> void:
+	var overlay := CenterContainer.new()
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margin.add_child(overlay)
+	_result_panel = PanelContainer.new()
+	_result_panel.visible = false
+	_result_panel.custom_minimum_size = Vector2(420, 220)
+	overlay.add_child(_result_panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	_result_panel.add_child(box)
+	_result_title = Label.new()
+	_result_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_result_title.add_theme_font_size_override("font_size", 32)
+	box.add_child(_result_title)
+	_result_body = Label.new()
+	_result_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_result_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_result_body)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 12)
+	box.add_child(row)
+	var back := Button.new()
+	back.text = "В город"
+	back.custom_minimum_size = Vector2(160, 56)
+	back.pressed.connect(func() -> void:
+		get_tree().change_scene_to_file("res://scenes/main.tscn")
+	)
+	row.add_child(back)
+	var again := Button.new()
+	again.text = "Ещё раз"
+	again.custom_minimum_size = Vector2(160, 56)
+	again.pressed.connect(func() -> void:
+		Roster.replay_stage = _fought_stage
+		get_tree().change_scene_to_file("res://scenes/battle.tscn")
+	)
+	row.add_child(again)
+
+
+func _lay_marks() -> void:
+	for slot in 5:
+		_mark("L%d" % slot, slot < 2)
+		_mark("R%d" % slot, slot < 2)
+
+
+func _mark(id: String, front: bool) -> void:
+	var disc := MeshInstance3D.new()
+	disc.name = "Mark" + id
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.72 if front else 0.55
+	mesh.bottom_radius = mesh.top_radius
+	mesh.height = 0.05
+	mesh.radial_segments = 24
+	disc.mesh = mesh
+	disc.position = _home(id) + Vector3(0, 0.04, 0)
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	if id.begins_with("L"):
+		material.albedo_color = Color("2f6b45") if front else Color("1d4034")
+	else:
+		material.albedo_color = Color("8a4036") if front else Color("5a302c")
+	disc.material_override = material
+	add_child(disc)
+
+
+func _tint_enemy(node: Node) -> void:
+	if node is MeshInstance3D:
+		var tint := StandardMaterial3D.new()
+		tint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		tint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		tint.albedo_color = Color(0.9, 0.22, 0.16, 0.32)
+		(node as MeshInstance3D).material_overlay = tint
+	for child in node.get_children():
+		_tint_enemy(child)
+
+
+func _add_flash(root: Node3D) -> void:
+	var flash := _quad(Vector2(1.3, 2.0), Color(1, 1, 1, 0))
+	flash.name = "Flash"
+	flash.position = Vector3(0, 1.6, 0)
+	flash.visible = false
+	root.add_child(flash)
+
+
+func _bolt(src: Node3D, dst: Node3D, kind: String) -> void:
+	var role := str(src.get_meta("role", ""))
+	if kind == "attack" and (role == "tank" or role == "warrior"):
+		return
+	var bolt := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(0.16, 0.16, 0.7)
+	bolt.mesh = box
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = Color("d6f07a") if kind == "heal" else Color("8fd0ff")
+	bolt.material_override = material
+	add_child(bolt)
+	_shots.append({
+		"node": bolt,
+		"from": src.position + Vector3(0, 1.5, 0),
+		"to": dst.position + Vector3(0, 1.5, 0),
+		"age": 0.0,
+	})
+
+
+func _flash(unit: Node3D) -> void:
+	unit.set_meta("flash", 0.16)
+
+
+func _fx(delta: float) -> void:
+	var kept: Array = []
+	for shot in _shots:
+		shot["age"] = float(shot["age"]) + delta
+		var amount := clampf(float(shot["age"]) / 0.16, 0.0, 1.0)
+		var bolt: MeshInstance3D = shot["node"]
+		var origin: Vector3 = shot["from"]
+		var target: Vector3 = shot["to"]
+		bolt.position = origin.lerp(target, amount)
+		if origin.distance_to(target) > 0.2:
+			bolt.look_at(target, Vector3.UP)
+		if amount >= 1.0:
+			bolt.queue_free()
+		else:
+			kept.append(shot)
+	_shots = kept
+	for unit_id in _units.keys():
+		var unit: Node3D = _units[unit_id]
+		var left := float(unit.get_meta("flash", 0.0))
+		var flash := unit.get_node_or_null("Flash") as MeshInstance3D
+		if flash == null:
+			continue
+		if left <= 0.0:
+			flash.visible = false
+			continue
+		left = maxf(0.0, left - delta)
+		unit.set_meta("flash", left)
+		flash.visible = left > 0.0
+		var material := flash.material_override as StandardMaterial3D
+		if material != null:
+			material.albedo_color = Color(1, 0.9, 0.75, left / 0.16)
+
+
+func _spawn(id: String, model: String, max_hp: int, role: String) -> void:
 	var root := Node3D.new()
 	root.position = _home(id)
 	root.set_meta("model_id", _file_id(model))
+	root.set_meta("role", role)
 	root.set_meta("hp", max_hp)
 	root.set_meta("max_hp", max_hp)
 	var used_glb := _attach_glb(root, model)
@@ -261,6 +400,7 @@ func _spawn(id: String, model: String, max_hp: int) -> void:
 		visual.scale = Vector3(fitted, fitted, fitted)
 		if id.begins_with("R"):
 			visual.rotation.y = PI
+			_tint_enemy(visual)
 		_plant_feet(visual)
 	else:
 		var mesh := MeshInstance3D.new()
@@ -275,6 +415,7 @@ func _spawn(id: String, model: String, max_hp: int) -> void:
 		root.add_child(mesh)
 	root.set_meta("side", id.substr(0, 1))
 	_add_bar(root, id.begins_with("L"))
+	_add_flash(root)
 	add_child(root)
 	_units[id] = root
 	_goals[id] = root.position
@@ -322,6 +463,9 @@ func _apply(event: Dictionary) -> void:
 		if dst != null and event.has("hp"):
 			dst.set_meta("hp", int(event["hp"]))
 			_refresh_hp(dst)
+			if not _quiet and src != null:
+				_bolt(src, dst, kind)
+				_flash(dst)
 			if kind == "attack":
 				_set_pose(dst, "hit")
 	elif kind == "down":

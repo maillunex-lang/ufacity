@@ -12,6 +12,7 @@ var slots: Array = ["temp_a", "temp_a", "temp_b", "temp_b", "temp_b"]
 var heroes := {"temp_a": {"level": 1, "copies": 1}, "temp_b": {"level": 1, "copies": 1}}
 var stage := 1
 var vip := 0
+var replay_stage := 0
 
 
 func _ready() -> void:

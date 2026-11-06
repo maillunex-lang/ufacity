@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 MELEE = {"tank", "warrior"}
 TICK = 0.1
 LIMIT = 20.0
@@ -9,14 +12,18 @@ MELEE_RANGE = 1.6
 RANGED_RANGE = 6.0
 STEP = 1.4
 
+_FORMATION = Path(__file__).resolve().parents[2] / "client" / "data" / "formation.json"
+
+
+def _load_slots() -> dict[int, tuple[float, float]]:
+    rows = json.loads(_FORMATION.read_text(encoding="utf-8"))["slots"]
+    if len(rows) != 5:
+        raise ValueError("formation.json must list 5 slots")
+    return {index: (float(row[0]), float(row[1])) for index, row in enumerate(rows)}
+
+
 # Left faces +Z, right faces -Z. Front line is closer to the center.
-SLOTS = {
-    0: (2.8, 3.6),
-    1: (-2.8, 3.6),
-    2: (5.6, 7.2),
-    3: (0.0, 7.6),
-    4: (-5.6, 7.2),
-}
+SLOTS = _load_slots()
 
 
 def _slot_pos(side: str, slot: int) -> tuple[float, float]:
