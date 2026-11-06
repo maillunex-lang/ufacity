@@ -1,3 +1,5 @@
+import random
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -9,6 +11,8 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def clean_accounts():
     app.state.accounts.reset()
+    app.state.clock = lambda: 1_700_000_000
+    app.state.rng = random.Random(1)
     yield
     app.state.accounts.reset()
 
@@ -102,3 +106,57 @@ def test_formation_save_ignores_client_gold():
 def test_recover_is_not_pretending_to_send_mail():
     response = client.post("/LunexGame/auth/recover")
     assert response.status_code == 501
+
+
+def _auth() -> dict:
+    token = client.post(
+        "/LunexGame/auth/register",
+        json={"login": "earner", "password": "long-enough"},
+    ).json()["token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+def test_idle_gold_comes_from_server_clock_only():
+    headers = _auth()
+    first = client.post("/LunexGame/idle/claim", headers=headers)
+    assert first.json()["gained"] == 0
+    app.state.clock = lambda: 1_700_000_000 + 100
+    second = client.post("/LunexGame/idle/claim", headers=headers, json={"gold": 99999})
+    assert second.status_code == 200
+    assert second.json()["gained"] == 10
+    assert second.json()["gold"] == 10
+
+
+def test_level_spends_server_gold():
+    headers = _auth()
+    app.state.clock = lambda: 1_700_000_000 + 300
+    client.post("/LunexGame/idle/claim", headers=headers)
+    upgraded = client.post("/LunexGame/heroes/level", headers=headers, json={"hero": "temp_a"})
+    assert upgraded.status_code == 200
+    assert upgraded.json()["level"] == 2
+    assert upgraded.json()["gold"] == 5
+    missing = client.post("/LunexGame/heroes/level", headers=headers, json={"hero": "temp_a"})
+    assert missing.status_code == 422
+
+
+def test_summon_does_not_accept_a_client_rarity():
+    headers = _auth()
+    app.state.clock = lambda: 1_700_000_000 + 500
+    client.post("/LunexGame/idle/claim", headers=headers)
+    rolled = client.post("/LunexGame/summon", headers=headers, json={"rarity": "legendary", "hero": "temp_c"})
+    assert rolled.status_code == 200
+    assert rolled.json()["hero"] in {"temp_a", "temp_b", "temp_c"}
+    assert rolled.json()["gold"] == 0
+
+
+def test_stage_clear_grants_only_when_the_server_wins():
+    headers = _auth()
+    cleared = client.post("/LunexGame/campaign/clear", headers=headers, json={"winner": "left", "gold": 999})
+    assert cleared.status_code == 200
+    body = cleared.json()
+    assert body["winner"] == "left"
+    assert body["reward_granted"] is True
+    assert body["reward_gold"] == 30
+    assert body["stage"] == 2
+    assert body["gold"] == 30
+

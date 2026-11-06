@@ -1,11 +1,16 @@
+import random
+
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from app.accounts import Store
 from app.battle import simulate
+from app.content import claim_idle, clear_stage, ensure_progress, level_up, summon
 
-app = FastAPI(title="Ufacity", version="0.2.0")
+app = FastAPI(title="Ufacity", version="0.3.0")
 app.state.accounts = Store()
+app.state.clock = lambda: 1_700_000_000
+app.state.rng = random.Random(1)
 
 
 class UnitIn(BaseModel):
@@ -31,6 +36,10 @@ class LoginIn(BaseModel):
     password: str
 
 
+class HeroIn(BaseModel):
+    hero: str
+
+
 class FormationIn(BaseModel):
     formation: list[str]
 
@@ -51,7 +60,7 @@ def _dump(side: list[UnitIn]) -> list[dict]:
 
 
 def public_user(user: dict) -> dict:
-    progress = user["progress"]
+    progress = ensure_progress(user, int(app.state.clock()))
     return {
         "id": user["id"],
         "login": user["login"],
@@ -59,6 +68,8 @@ def public_user(user: dict) -> dict:
         "stage": progress["stage"],
         "gold": progress["gold"],
         "formation": progress["formation"],
+        "heroes": progress["heroes"],
+        "pity": progress["pity"],
         "persisted": False,
     }
 
@@ -130,6 +141,40 @@ def auth_recover() -> dict:
 @app.get("/LunexGame/me")
 def me(authorization: str = Header(default="")) -> dict:
     return public_user(_user_or_401(authorization))
+
+
+@app.post("/LunexGame/idle/claim")
+def idle_claim(authorization: str = Header(default="")) -> dict:
+    user = _user_or_401(authorization)
+    return claim_idle(user, int(app.state.clock()))
+
+
+@app.post("/LunexGame/heroes/level")
+def hero_level(body: HeroIn, authorization: str = Header(default="")) -> dict:
+    user = _user_or_401(authorization)
+    try:
+        return level_up(user, body.hero, int(app.state.clock()))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/LunexGame/summon")
+def summon_hero(authorization: str = Header(default="")) -> dict:
+    user = _user_or_401(authorization)
+    try:
+        return summon(user, app.state.rng, int(app.state.clock()))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/LunexGame/campaign/clear")
+def campaign_clear(authorization: str = Header(default="")) -> dict:
+    user = _user_or_401(authorization)
+    seed = app.state.rng.randint(1, 1_000_000)
+    try:
+        return clear_stage(user, seed, int(app.state.clock()))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.put("/LunexGame/me/formation")

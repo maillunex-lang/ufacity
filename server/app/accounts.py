@@ -86,7 +86,7 @@ class Store:
             "login": login,
             "kind": kind,
             "password": password,
-            "progress": {"stage": 1, "gold": 0, "formation": []},
+            "progress": {"stage": 1, "gold": 0, "formation": [], "last_claim": None},
         }
 
     def _issue(self, uid: str) -> str:
