@@ -11,6 +11,7 @@ LIMIT = 20.0
 MELEE_RANGE = 1.6
 RANGED_RANGE = 6.0
 STEP = 1.4
+URALDAR_REACH = 9.0
 
 _FORMATION = Path(__file__).resolve().parents[2] / "client" / "data" / "formation.json"
 
@@ -56,6 +57,57 @@ def _pick_target(actor: dict, foes: list[dict]) -> dict | None:
     return min(pool, key=lambda u: (u["slot"], u["id"]))
 
 
+def _perform(actor: dict, target: dict, allies: list[dict], events: list[dict], now: float, kind: str) -> None:
+    if now >= actor["might_until"]:
+        actor["might"] = 1.0
+    if kind == "oath":
+        actor["guard_until"] = round(now + 1.5, 2)
+        actor["cooldown"] = 1.0 / max(actor["speed"], 0.1)
+        events.append({"t": round(now, 2), "type": "skill", "name": "oath", "src": actor["id"], "amount": 0})
+        return
+    if kind == "spirit":
+        until = round(now + 1.5, 2)
+        for ally in allies:
+            if ally["hp"] > 0:
+                ally["might"] = 1.25
+                ally["might_until"] = until
+    amount = _strike(actor, target, now)
+    if kind == "cleave":
+        amount += 6
+    target["hp"] = max(0, target["hp"] - amount)
+    event_type = "attack" if kind == "attack" else "skill"
+    row = {
+        "t": round(now, 2),
+        "type": event_type,
+        "src": actor["id"],
+        "dst": target["id"],
+        "amount": amount,
+        "hp": target["hp"],
+    }
+    if event_type == "skill":
+        row["name"] = kind
+    events.append(row)
+    if target["hp"] == 0:
+        events.append({"t": round(now, 2), "type": "down", "unit": target["id"]})
+    actor["cooldown"] = 1.0 / max(actor["speed"], 0.1)
+
+
+def _uraldar_action(actor: dict) -> str:
+    if actor.get("model") != "uraldar":
+        return "attack"
+    actor["swing"] = int(actor.get("swing", 0)) + 1
+    spot = (actor["swing"] - 1) % 4
+    return ("attack", "cleave", "oath", "spirit")[spot]
+
+
+def _strike(actor: dict, target: dict, now: float) -> int:
+    power = actor["atk"] * float(actor.get("might", 1.0))
+    amount = max(1, int(power) - target["def"] // 2)
+    if now < target.get("guard_until", 0.0):
+        amount = max(1, int(amount * 0.65))
+    return amount
+
+
 def _heal_target(allies: list[dict]) -> dict | None:
     alive = [u for u in allies if u["hp"] > 0]
     if not alive:
@@ -80,6 +132,13 @@ def make_unit(side: str, raw: dict) -> dict:
         "speed": float(raw.get("speed", 1)),
         "pos": _slot_pos(side, slot),
         "cooldown": 0.0,
+        "swing": 0,
+        "guard_until": 0.0,
+        "might": 1.0,
+        "might_until": 0.0,
+        "did_cleave": False,
+        "did_oath": False,
+        "did_spirit": False,
     }
 
 
@@ -111,7 +170,14 @@ def simulate(left: list[dict], right: list[dict], seed: int = 1) -> dict:
             if target is None or target is actor:
                 continue
             reach = MELEE_RANGE if melee else RANGED_RANGE
-            if melee and _dist(actor["pos"], target["pos"]) > reach:
+            gap = _dist(actor["pos"], target["pos"])
+            lunging = (
+                actor.get("model") == "uraldar"
+                and actor["cooldown"] <= 0
+                and t >= 0.45
+                and gap <= URALDAR_REACH
+            )
+            if melee and gap > reach and not lunging:
                 actor["pos"] = _toward(actor["pos"], target["pos"], STEP * TICK * actor["speed"])
                 events.append({
                     "t": round(t, 2),
@@ -122,8 +188,8 @@ def simulate(left: list[dict], right: list[dict], seed: int = 1) -> dict:
                 continue
             if actor["cooldown"] > 0:
                 continue
-            amount = max(1, actor["atk"] - target["def"] // 2)
             if actor["role"] == "healer":
+                amount = max(1, actor["atk"] - target["def"] // 2)
                 healed = min(amount, target["max_hp"] - target["hp"])
                 target["hp"] += healed
                 events.append({
@@ -133,19 +199,12 @@ def simulate(left: list[dict], right: list[dict], seed: int = 1) -> dict:
                     "dst": target["id"],
                     "amount": healed,
                 })
-            else:
-                target["hp"] = max(0, target["hp"] - amount)
-                events.append({
-                    "t": round(t, 2),
-                    "type": "attack",
-                    "src": actor["id"],
-                    "dst": target["id"],
-                    "amount": amount,
-                    "hp": target["hp"],
-                })
-                if target["hp"] == 0:
-                    events.append({"t": round(t, 2), "type": "down", "unit": target["id"]})
-            actor["cooldown"] = 1.0 / max(actor["speed"], 0.1)
+                actor["cooldown"] = 1.0 / max(actor["speed"], 0.1)
+                continue
+            if t >= actor["might_until"]:
+                actor["might"] = 1.0
+            kind = _uraldar_action(actor)
+            _perform(actor, target, allies, events, t, kind)
         t = round(t + TICK, 2)
     left_hp = sum(u["hp"] for u in units if u["side"] == "left")
     right_hp = sum(u["hp"] for u in units if u["side"] == "right")

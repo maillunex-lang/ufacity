@@ -429,6 +429,8 @@ func _heroes() -> void:
 			role = "стрелок"
 		elif str(row["role"]) == "healer":
 			role = "целитель"
+		elif str(row["role"]) == "warrior":
+			role = "боец"
 		var picked := str(hero_id)
 		var button := Button.new()
 		button.text = "%s\n%s, уровень %d" % [str(row["name"]), role, int(row["level"])]
@@ -571,6 +573,8 @@ func _profile() -> void:
 		role = "стрелок, стоит на месте"
 	elif str(row["role"]) == "healer":
 		role = "целитель"
+	elif str(row["role"]) == "warrior":
+		role = "боец, бьёт вблизи"
 	column.add_child(_card("Имя", str(row["name"])))
 	column.add_child(_card("Роль", role))
 	column.add_child(_card("Уровень", str(int(row["level"]))))

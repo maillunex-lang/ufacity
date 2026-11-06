@@ -10,6 +10,7 @@ HEROES = {
     "temp_a": {"model": "swordsman", "role": "tank", "rarity": "common", "hp": 120, "atk": 20, "def": 6, "speed": 1},
     "temp_b": {"model": "priest", "role": "ranger", "rarity": "common", "hp": 90, "atk": 16, "def": 3, "speed": 1},
     "temp_c": {"model": "priest", "role": "healer", "rarity": "uncommon", "hp": 100, "atk": 12, "def": 4, "speed": 1},
+    "uraldar": {"model": "uraldar", "role": "warrior", "rarity": "epic", "hp": 110, "atk": 22, "def": 5, "speed": 1.45},
 }
 
 IDLE_CAP = 8 * 3600
@@ -19,15 +20,16 @@ PITY = 10
 
 def ensure_progress(user: dict, now: int) -> dict:
     progress = user["progress"]
-    progress.setdefault("heroes", {
+    heroes = progress.setdefault("heroes", {
         "temp_a": {"level": 1, "copies": 1},
         "temp_b": {"level": 1, "copies": 1},
     })
+    heroes.setdefault("uraldar", {"level": 1, "copies": 1})
     progress.setdefault("pity", 0)
     if progress.get("last_claim") is None:
         progress["last_claim"] = now
     if not progress.get("formation"):
-        progress["formation"] = ["temp_a", "temp_a", "temp_b", "temp_b", "temp_b"]
+        progress["formation"] = ["temp_a", "uraldar", "temp_b", "temp_b", "temp_b"]
     return progress
 
 
@@ -88,14 +90,15 @@ def _side(ids: list[str], levels: dict[str, dict], stage: int, enemy: bool) -> l
         base = HEROES.get(hero_id, HEROES["temp_a"])
         level = 1 if enemy else levels.get(hero_id, {}).get("level", 1)
         scale = stage if enemy else level
+        model = base["model"] if not enemy else "priest"
         units.append({
             "slot": slot,
             "role": base["role"] if not enemy else roles[slot],
-            "model": base["model"],
+            "model": model,
             "hp": 40 * scale if enemy else base["hp"] + (level - 1) * 20,
             "atk": 6 * scale if enemy else base["atk"] + (level - 1) * 4,
             "def": 1 if enemy else base["def"],
-            "speed": 1,
+            "speed": 1 if enemy else float(base.get("speed", 1)),
         })
     return units
 

@@ -5,6 +5,7 @@ const LIMIT := 20.0
 const MELEE_RANGE := 1.6
 const RANGED_RANGE := 6.0
 const STEP := 1.4
+const URALDAR_REACH := 9.0
 static var _slot_rows: Array = []
 
 
@@ -36,6 +37,8 @@ static func _canon(raw: String) -> String:
 		return "temp_b"
 	if raw == "temp_c":
 		return "temp_c"
+	if raw == "uraldar":
+		return "uraldar"
 	return "temp_a"
 
 
@@ -46,6 +49,8 @@ static func _player(slot: int, hero_id: String, level: int) -> Dictionary:
 		return {"slot": slot, "role": "ranger", "model": "priest", "hp": 90 + (safe_level - 1) * 20, "atk": 16 + (safe_level - 1) * 4, "def": 3, "speed": 1}
 	if canon == "temp_c":
 		return {"slot": slot, "role": "healer", "model": "priest", "hp": 100 + (safe_level - 1) * 20, "atk": 12 + (safe_level - 1) * 4, "def": 4, "speed": 1}
+	if canon == "uraldar":
+		return {"slot": slot, "role": "warrior", "model": "uraldar", "hp": 110 + (safe_level - 1) * 20, "atk": 22 + (safe_level - 1) * 4, "def": 5, "speed": 1.45}
 	return {"slot": slot, "role": "tank", "model": "swordsman", "hp": 120 + (safe_level - 1) * 20, "atk": 20 + (safe_level - 1) * 4, "def": 6, "speed": 1}
 
 
@@ -96,7 +101,9 @@ static func _simulate(left: Array, right: Array, seed: int) -> Dictionary:
 			var reach := MELEE_RANGE if melee else RANGED_RANGE
 			var pos: Vector2 = actor["pos"]
 			var dst: Vector2 = target["pos"]
-			if melee and _dist(pos, dst) > reach:
+			var gap := _dist(pos, dst)
+			var lunging := str(actor.get("model", "")) == "uraldar" and float(actor["cooldown"]) <= 0.0 and t >= 0.45 and gap <= URALDAR_REACH
+			if melee and gap > reach and not lunging:
 				actor["pos"] = _toward(pos, dst, STEP * TICK * float(actor["speed"]))
 				var moved: Vector2 = actor["pos"]
 				events.append({
@@ -108,9 +115,9 @@ static func _simulate(left: Array, right: Array, seed: int) -> Dictionary:
 				continue
 			if float(actor["cooldown"]) > 0.0:
 				continue
-			var amount := maxi(1, int(actor["atk"]) - int(int(target["def"]) / 2))
 			if str(actor["role"]) == "healer":
-				var healed := mini(amount, int(target["max_hp"]) - int(target["hp"]))
+				var healed_amount := maxi(1, int(actor["atk"]) - int(int(target["def"]) / 2))
+				var healed := mini(healed_amount, int(target["max_hp"]) - int(target["hp"]))
 				target["hp"] = int(target["hp"]) + healed
 				events.append({
 					"t": t,
@@ -119,19 +126,12 @@ static func _simulate(left: Array, right: Array, seed: int) -> Dictionary:
 					"dst": target["id"],
 					"amount": healed,
 				})
-			else:
-				target["hp"] = maxi(0, int(target["hp"]) - amount)
-				events.append({
-					"t": t,
-					"type": "attack",
-					"src": actor["id"],
-					"dst": target["id"],
-					"amount": amount,
-					"hp": int(target["hp"]),
-				})
-				if int(target["hp"]) == 0:
-					events.append({"t": t, "type": "down", "unit": target["id"]})
-			actor["cooldown"] = 1.0 / maxf(float(actor["speed"]), 0.1)
+				actor["cooldown"] = 1.0 / maxf(float(actor["speed"]), 0.1)
+				continue
+			if t >= float(actor["might_until"]):
+				actor["might"] = 1.0
+			var kind := _uraldar_action(actor)
+			_perform(actor, target, allies, events, t, kind)
 		t_cent += 10
 	var left_hp := 0
 	var right_hp := 0
@@ -181,10 +181,81 @@ static func _make(side: String, raw: Dictionary) -> Dictionary:
 		"max_hp": max_hp,
 		"atk": int(raw["atk"]),
 		"def": int(raw["def"]),
-		"speed": float(raw["speed"]),
+		"speed": float(raw.get("speed", 1)),
 		"pos": spot,
 		"cooldown": 0.0,
+		"swing": 0,
+		"guard_until": 0.0,
+		"might": 1.0,
+		"might_until": 0.0,
+		"did_cleave": false,
+		"did_oath": false,
+		"did_spirit": false,
 	}
+
+
+static func _perform(actor: Dictionary, target: Dictionary, allies: Array, events: Array, now: float, kind: String) -> void:
+	if now >= float(actor["might_until"]):
+		actor["might"] = 1.0
+	if kind == "oath":
+		actor["guard_until"] = snappedf(now + 1.5, 0.01)
+		actor["cooldown"] = 1.0 / maxf(float(actor["speed"]), 0.1)
+		events.append({"t": now, "type": "skill", "name": "oath", "src": actor["id"], "amount": 0})
+		return
+	if kind == "spirit":
+		var until := snappedf(now + 1.5, 0.01)
+		for ally in allies:
+			if int(ally["hp"]) > 0:
+				ally["might"] = 1.25
+				ally["might_until"] = until
+	var amount := _strike(actor, target, now)
+	if kind == "cleave":
+		amount += 6
+	target["hp"] = maxi(0, int(target["hp"]) - amount)
+	if kind == "attack":
+		events.append({
+			"t": now,
+			"type": "attack",
+			"src": actor["id"],
+			"dst": target["id"],
+			"amount": amount,
+			"hp": int(target["hp"]),
+		})
+	else:
+		events.append({
+			"t": now,
+			"type": "skill",
+			"name": kind,
+			"src": actor["id"],
+			"dst": target["id"],
+			"amount": amount,
+			"hp": int(target["hp"]),
+		})
+	if int(target["hp"]) == 0:
+		events.append({"t": now, "type": "down", "unit": target["id"]})
+	actor["cooldown"] = 1.0 / maxf(float(actor["speed"]), 0.1)
+
+
+static func _uraldar_action(actor: Dictionary) -> String:
+	if str(actor.get("model", "")) != "uraldar":
+		return "attack"
+	actor["swing"] = int(actor.get("swing", 0)) + 1
+	var spot := (int(actor["swing"]) - 1) % 4
+	if spot == 1:
+		return "cleave"
+	if spot == 2:
+		return "oath"
+	if spot == 3:
+		return "spirit"
+	return "attack"
+
+
+static func _strike(actor: Dictionary, target: Dictionary, now: float) -> int:
+	var power := float(actor["atk"]) * float(actor.get("might", 1.0))
+	var amount := maxi(1, int(power) - int(int(target["def"]) / 2))
+	if now < float(target.get("guard_until", 0.0)):
+		amount = maxi(1, int(float(amount) * 0.65))
+	return amount
 
 
 static func _alive(units: Array, side: String) -> Array:

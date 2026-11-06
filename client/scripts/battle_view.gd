@@ -7,6 +7,7 @@ const MODEL_FILE := {
 	"temp_b": "priest",
 	"swordsman": "swordsman",
 	"priest": "priest",
+	"uraldar": "uraldar",
 }
 
 const CLIP_ALIAS := {
@@ -25,6 +26,14 @@ const CLIP_ALIAS := {
 		"hit": "Hit_Reaction",
 		"death": "Dead",
 	},
+	"uraldar": {
+		"idle": "Combat_Stance",
+		"move": "Running",
+		"attack": "Thrust_Slash",
+		"skill": "Skill_01",
+		"hit": "Hit_Reaction",
+		"death": "Dead",
+	},
 }
 
 const Sim = preload("res://scripts/battle_sim.gd")
@@ -40,6 +49,9 @@ var _right_hp := 0
 var _stage_written := false
 var _goals := {}
 var _rate := 1
+var _cam_home := Vector3(-14, 18, 0)
+var _zoom_left := 0.0
+var _bursts: Array = []
 var _speed_note: Label
 var _paused := false
 var _pause_button: Button
@@ -125,6 +137,7 @@ func _frame_camera() -> void:
 	camera.fov = rad_to_deg(half_v * 2.0)
 	camera.position = Vector3(-14, 18, 0)
 	camera.look_at(Vector3(0, 0, 0))
+	_cam_home = camera.position
 
 
 func _process(delta: float) -> void:
@@ -132,6 +145,10 @@ func _process(delta: float) -> void:
 		return
 	var scaled := delta * float(_rate)
 	_quiet = scaled > 0.4 or _end_wait >= 0.0
+	_zoom_left = maxf(_zoom_left - scaled, 0.0)
+	var punch := clampf(_zoom_left / 0.45, 0.0, 1.0)
+	$Camera3D.position = _cam_home.lerp(_cam_home * 0.86, punch)
+	_fade_bursts(scaled)
 	if _end_wait < 0.0:
 		_time += scaled
 		while _cursor < _events.size() and float(_events[_cursor].get("t", 0.0)) <= _time:
@@ -523,6 +540,7 @@ func _fx(delta: float) -> void:
 func _spawn(id: String, model: String, max_hp: int, role: String) -> void:
 	var root := Node3D.new()
 	root.position = _home(id)
+	root.name = id
 	root.set_meta("model_id", _file_id(model))
 	root.set_meta("role", role)
 	root.set_meta("hp", max_hp)
@@ -532,7 +550,9 @@ func _spawn(id: String, model: String, max_hp: int, role: String) -> void:
 	if used_glb:
 		var visual := root.get_child(0) as Node3D
 		var file_id := _file_id(model)
-		var model_height := 1.7 if file_id == "swordsman" else 1.1
+		var model_height := 1.1
+		if file_id == "swordsman" or file_id == "uraldar":
+			model_height = 1.7
 		var fitted := 3.4 / model_height
 		visual.scale = Vector3(fitted, fitted, fitted)
 		if id.begins_with("R"):
@@ -592,19 +612,36 @@ func _apply(event: Dictionary) -> void:
 		unit.set_meta("walk_until", _time + 0.28)
 		if not bool(unit.get_meta("down", false)) and str(unit.get_meta("pose", "")) != "attack" and str(unit.get_meta("pose", "")) != "skill":
 			_set_pose(unit, "move")
-	elif kind == "attack" or kind == "heal":
+	elif kind == "attack" or kind == "heal" or kind == "skill":
 		var src = _units.get(str(event.get("src", "")))
+		var skill_name := str(event.get("name", ""))
 		if src != null:
-			_set_pose(src, "attack" if kind == "attack" else "skill")
+			if kind == "skill" and skill_name == "cleave":
+				_set_pose(src, "skill", "Skill_01")
+				_crystal_wave(src)
+			elif kind == "skill" and skill_name == "oath":
+				_set_pose(src, "skill", "Sword_Shout")
+				_guard_dome(src)
+				_zoom_left = 0.45
+			elif kind == "skill" and skill_name == "spirit":
+				_set_pose(src, "skill", "Sword_Shout")
+				_mountain(src)
+				_ally_wave(src)
+			elif kind == "attack" and str(src.get_meta("model_id", "")) == "uraldar":
+				var shown := int(src.get_meta("shown", 0)) + 1
+				src.set_meta("shown", shown)
+				_set_pose(src, "attack", "Left_Slash" if shown % 2 == 0 else "Thrust_Slash")
+			else:
+				_set_pose(src, "attack" if kind == "attack" else "skill")
 		var dst = _units.get(str(event.get("dst", "")))
 		if dst != null and event.has("hp"):
 			dst.set_meta("hp", int(event["hp"]))
 			_refresh_hp(dst)
-			if not _quiet and src != null:
-				_bolt(src, dst, kind)
+			if not _quiet and src != null and int(event.get("amount", 0)) > 0:
+				_bolt(src, dst, "heal" if kind == "heal" else "attack")
 				_flash(dst)
-				_float_number(dst, int(event.get("amount", 0)), kind)
-			if kind == "attack":
+				_float_number(dst, int(event.get("amount", 0)), "heal" if kind == "heal" else "attack")
+			if kind == "attack" or (kind == "skill" and int(event.get("amount", 0)) > 0):
 				_set_pose(dst, "hit")
 	elif kind == "down":
 		var unit = _units.get(str(event.get("unit", "")))
@@ -656,8 +693,7 @@ func _apply_rate() -> void:
 
 
 func _pose_scale(unit: Node) -> float:
-	var slow := 1.15 if str(unit.get_meta("pose", "")) == "move" else 1.0
-	return slow * float(_rate)
+	return _clip_pace(unit, str(unit.get_meta("pose", "")), str(unit.get_meta("pose_clip", "")))
 
 
 func _toggle_pause() -> void:
@@ -751,7 +787,10 @@ func _slide(delta: float) -> void:
 		if not _goals.has(unit_id):
 			continue
 		var goal: Vector3 = _goals[unit_id]
-		unit.position = unit.position.move_toward(goal, delta * 1.4)
+		var pace := 1.4
+		if str(unit.get_meta("model_id", "")) == "uraldar":
+			pace = 2.03
+		unit.position = unit.position.move_toward(goal, delta * pace)
 		var flat := goal - unit.position
 		flat.y = 0.0
 		var stepping := flat.length() > 0.05
@@ -765,12 +804,13 @@ func _slide(delta: float) -> void:
 			_set_pose(unit, "idle")
 
 
-func _set_pose(unit: Node, pose: String) -> void:
+func _set_pose(unit: Node, pose: String, clip_name: String = "") -> void:
 	if bool(unit.get_meta("down", false)) and pose != "death":
 		return
 	if str(unit.get_meta("pose", "")) == pose and pose != "attack" and pose != "skill" and pose != "hit":
 		return
 	unit.set_meta("pose", pose)
+	unit.set_meta("pose_clip", clip_name)
 	_play(unit, pose)
 
 
@@ -795,17 +835,212 @@ func _play(root: Node, clip: String) -> void:
 		return
 	var model := str(root.get_meta("model_id", ""))
 	var table: Dictionary = CLIP_ALIAS.get(model, {})
-	var actual := str(table.get(clip, ""))
+	var actual := str(root.get_meta("pose_clip", ""))
+	if actual == "" or not player.has_animation(actual):
+		actual = str(table.get(clip, ""))
 	if actual == "":
 		actual = str(table.get("idle", clip))
 	if player.has_animation(actual):
 		var anim := player.get_animation(actual)
-		if anim != null and (clip == "idle" or clip == "move"):
-			anim.loop_mode = Animation.LOOP_LINEAR
-		player.speed_scale = 1.15 * float(_rate) if clip == "move" else float(_rate)
+		if anim != null:
+			if clip == "idle" or clip == "move":
+				anim.loop_mode = Animation.LOOP_LINEAR
+			else:
+				anim.loop_mode = Animation.LOOP_NONE
+		player.speed_scale = _clip_pace(root, clip, actual)
 		player.play(actual)
 	elif player.has_animation("idle"):
 		player.play("idle")
+
+
+func _clip_pace(unit: Node, clip: String, actual: String) -> float:
+	var model := str(unit.get_meta("model_id", ""))
+	if model == "uraldar" and actual in ["Thrust_Slash", "Left_Slash"]:
+		return 2.3 * float(_rate)
+	if model == "uraldar" and actual == "Skill_01":
+		return 1.25 * float(_rate)
+	if model == "uraldar" and actual == "Sword_Shout":
+		return 4.4 * float(_rate)
+	if model == "uraldar" and clip == "move":
+		return 1.4 * float(_rate)
+	if clip == "move":
+		return 1.15 * float(_rate)
+	return float(_rate)
+
+
+func _forward(unit: Node3D) -> Vector3:
+	var visual := unit.get_child(0) as Node3D
+	var forward := Vector3.ZERO
+	if visual != null and visual.name != "Hp":
+		forward = visual.global_transform.basis.z
+	forward.y = 0.0
+	if forward.length() < 0.05:
+		forward = Vector3(0, 0, 1 if str(unit.get_meta("side", "")) == "left" else -1)
+	return forward.normalized()
+
+
+func _fx_mat(color: Color, glow: float = 1.8) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.emission_enabled = true
+	material.emission = Color(color.r, color.g, color.b)
+	material.emission_energy_multiplier = glow
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	return material
+
+
+func _peak_mesh(height: float, radius: float) -> CylinderMesh:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.02
+	mesh.bottom_radius = radius
+	mesh.height = height
+	mesh.radial_segments = 5
+	return mesh
+
+
+func _remember(node: Node3D, life: float, extra: Dictionary) -> void:
+	add_child(node)
+	_bursts.append({"node": node, "age": 0.0, "life": life, "extra": extra})
+
+
+func _crystal_wave(unit: Node3D) -> void:
+	if _quiet:
+		return
+	var forward := _forward(unit)
+	var side := forward.cross(Vector3.UP).normalized()
+	var heights: Array = [1.05, 1.55, 1.25, 1.75, 1.35, 0.95]
+	for index in heights.size():
+		var height := float(heights[index])
+		var cone := MeshInstance3D.new()
+		var mesh := _peak_mesh(height, 0.18 + float(index % 3) * 0.05)
+		cone.mesh = mesh
+		cone.material_override = _fx_mat(Color(0.28, 0.96, 0.88, 0.92), 2.4)
+		var offset := float(index) * 0.46 - 1.15
+		_remember(cone, 1.5, {
+			"kind": "crystal",
+			"from": unit.position,
+			"dir": forward,
+			"side": side,
+			"offset": offset,
+			"height": height,
+			"lag": float(index) * 0.045,
+		})
+
+
+func _guard_dome(unit: Node3D) -> void:
+	if _quiet:
+		return
+	var bubble := MeshInstance3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = 1.28
+	mesh.height = 2.56
+	mesh.radial_segments = 24
+	mesh.rings = 12
+	bubble.mesh = mesh
+	bubble.material_override = _fx_mat(Color(0.42, 0.8, 1.0, 0.32), 1.6)
+	_remember(bubble, 1.5, {"kind": "dome", "id": unit.name, "alpha": 0.32, "lift": 1.2})
+	var ring := MeshInstance3D.new()
+	var disc := CylinderMesh.new()
+	disc.top_radius = 1.38
+	disc.bottom_radius = 1.38
+	disc.height = 0.05
+	ring.mesh = disc
+	ring.material_override = _fx_mat(Color(0.62, 0.92, 1.0, 0.5), 2.0)
+	_remember(ring, 1.5, {"kind": "dome", "id": unit.name, "alpha": 0.5, "lift": 0.08})
+
+
+func _mountain(unit: Node3D) -> void:
+	if _quiet:
+		return
+	var back := -_forward(unit)
+	var side := back.cross(Vector3.UP).normalized()
+	var peaks: Array = [
+		{"h": 3.5, "r": 0.9, "x": 0.0},
+		{"h": 2.7, "r": 0.62, "x": -1.2},
+		{"h": 2.45, "r": 0.55, "x": 1.25},
+		{"h": 1.8, "r": 0.38, "x": -0.4},
+	]
+	for row in peaks:
+		var peak := MeshInstance3D.new()
+		var mesh := _peak_mesh(float(row["h"]), float(row["r"]))
+		peak.mesh = mesh
+		peak.material_override = _fx_mat(Color(0.45, 0.95, 0.72, 0.55), 2.1)
+		_remember(peak, 1.5, {
+			"kind": "mountain",
+			"from": unit.position,
+			"dir": back,
+			"side": side,
+			"offset": float(row["x"]),
+			"height": float(row["h"]),
+		})
+
+
+func _ally_wave(unit: Node3D) -> void:
+	if _quiet:
+		return
+	var disc := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.45
+	mesh.bottom_radius = 0.45
+	mesh.height = 0.06
+	disc.mesh = mesh
+	disc.material_override = _fx_mat(Color(0.75, 1.0, 0.55, 0.42), 1.9)
+	_remember(disc, 1.5, {"kind": "wave", "from": unit.position, "alpha": 0.42})
+
+
+func _fade_bursts(delta: float) -> void:
+	var kept: Array = []
+	for burst in _bursts:
+		burst["age"] = float(burst["age"]) + delta
+		var age := float(burst["age"])
+		var life := float(burst["life"])
+		var node := burst["node"] as Node3D
+		if node == null or not is_instance_valid(node):
+			continue
+		var extra: Dictionary = burst["extra"]
+		var kind := str(extra.get("kind", ""))
+		if kind == "crystal":
+			var dir: Vector3 = extra["dir"]
+			var side: Vector3 = extra["side"]
+			var lag := float(extra.get("lag", 0.0))
+			var local := maxf(0.0, age - lag)
+			var grow := clampf(local / 0.16, 0.0, 1.0)
+			var height := float(extra["height"])
+			node.scale = Vector3(1.0, grow, 1.0)
+			node.position = extra["from"] + dir * (0.7 + local * 3.5) + side * float(extra["offset"])
+			node.position.y = height * grow * 0.5
+		elif kind == "dome":
+			var host: Node3D = _units.get(str(extra["id"]), null)
+			if host != null:
+				node.position = host.position + Vector3(0, float(extra.get("lift", 1.2)), 0)
+		elif kind == "mountain":
+			var dir2: Vector3 = extra["dir"]
+			var side_dir: Vector3 = extra["side"]
+			var grow2 := clampf(age / 0.22, 0.0, 1.0)
+			var height2 := float(extra["height"])
+			node.scale = Vector3(1.0, grow2, 1.0)
+			node.position = extra["from"] + dir2 * 1.35 + side_dir * float(extra["offset"])
+			node.position.y = height2 * grow2 * 0.5
+		elif kind == "wave":
+			var radius := 0.45 + age * 4.1
+			node.scale = Vector3(radius / 0.45, 1.0, radius / 0.45)
+			node.position = extra["from"]
+			node.position.y = 0.12
+		var material := node.material_override as StandardMaterial3D
+		if material != null:
+			var color := material.albedo_color
+			if not extra.has("alpha"):
+				extra["alpha"] = color.a
+			color.a = float(extra["alpha"]) * (1.0 - age / life)
+			material.albedo_color = color
+		if age >= life:
+			node.queue_free()
+		else:
+			kept.append(burst)
+	_bursts = kept
 
 
 func _find_player(node: Node) -> AnimationPlayer:

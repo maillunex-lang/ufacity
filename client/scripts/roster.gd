@@ -5,11 +5,12 @@ const CATALOG := {
 	"temp_a": {"name": "Мечник", "model": "swordsman", "role": "tank", "rarity": "обычный", "hp": 120, "atk": 20, "def": 6},
 	"temp_b": {"name": "Жрец", "model": "priest", "role": "ranger", "rarity": "обычный", "hp": 90, "atk": 16, "def": 3},
 	"temp_c": {"name": "Жрец-целитель", "model": "priest", "role": "healer", "rarity": "необычный", "hp": 100, "atk": 12, "def": 4},
+	"uraldar": {"name": "Уралдар", "model": "uraldar", "role": "warrior", "rarity": "эпический", "hp": 110, "atk": 22, "def": 5},
 }
-const OWNED_ORDER := ["temp_a", "temp_b", "temp_c"]
+const OWNED_ORDER := ["temp_a", "temp_b", "uraldar", "temp_c"]
 
-var slots: Array = ["temp_a", "temp_a", "temp_b", "temp_b", "temp_b"]
-var heroes := {"temp_a": {"level": 1, "copies": 1}, "temp_b": {"level": 1, "copies": 1}}
+var slots: Array = ["temp_a", "uraldar", "temp_b", "temp_b", "temp_b"]
+var heroes := {"temp_a": {"level": 1, "copies": 1}, "temp_b": {"level": 1, "copies": 1}, "uraldar": {"level": 1, "copies": 1}}
 var stage := 1
 var vip := 0
 var replay_stage := 0
@@ -17,6 +18,7 @@ var replay_stage := 0
 
 func _ready() -> void:
 	_load()
+	_ensure_uraldar()
 
 
 func _load() -> void:
@@ -63,6 +65,18 @@ func _canon(raw: String) -> String:
 	if CATALOG.has(raw):
 		return raw
 	return ""
+
+
+func _ensure_uraldar() -> void:
+	if not heroes.has("uraldar"):
+		heroes["uraldar"] = {"level": 1, "copies": 1}
+	var placed := false
+	for hero_id in slots:
+		if str(hero_id) == "uraldar":
+			placed = true
+	if not placed:
+		slots[1] = "uraldar"
+	_save()
 
 
 func owned_ids() -> Array:
