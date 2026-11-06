@@ -11,9 +11,11 @@ const PAGES := {
 	"arena": ["Арена", "Это бой отряда против жрецов первой стадии, не PvP и не рейтинг."],
 	"guild": ["Гильдия", "Раздел есть. Совместной игры нет."],
 	"dungeons": ["Подземелья", "Раздел есть. Боёв подземелья нет."],
-	"shop": ["Магазин", "Витрина-заглушка. Покупок нет."],
+	"shop": ["Магазин", "Лавка и донат только нарисованы. Оплаты нет, ничего не списывается и не выдаётся."],
+	"vip": ["VIP", "Уровень VIP 0. Бонусы не действуют и не покупаются."],
+	"profile": ["Профиль", "Карточка героя. Снаряжение пустое, уровень не растёт."],
 	"quests": ["Задания", "Список пуст. Наград нет."],
-	"settings": ["Настройки", "Гостевой вход на сервере есть. Аккаунты живут в памяти процесса и пропадают при перезапуске. Почта восстановления отвечает 501."],
+	"settings": ["Настройки", "Аккаунт, язык и версия. Сервер с телефона не вызывается."],
 	"more": ["Разделы", "Неготовые разделы открываются и пишут, чего в них нет."],
 }
 
@@ -23,6 +25,9 @@ var _body: Label
 var _host: Control
 var _bar_buttons: Array[Button] = []
 var _page := "city"
+var _open_hero := "temp_a"
+var _chip_stage: Label
+var _chip_gold: Label
 
 
 func _ready() -> void:
@@ -42,9 +47,24 @@ func _ready() -> void:
 	_margin.add_child(column)
 	_title = Label.new()
 	_title.add_theme_font_size_override("font_size", 34)
+	_title.add_theme_color_override("font_color", Color("f4efe4"))
 	column.add_child(_title)
+	var chips := HBoxContainer.new()
+	chips.add_theme_constant_override("separation", 8)
+	column.add_child(chips)
+	_chip_stage = _chip("Стадия 1")
+	_chip_gold = _chip("Золото: нет")
+	chips.add_child(_chip_stage)
+	chips.add_child(_chip_gold)
+	var vip := Button.new()
+	vip.text = "VIP 0"
+	vip.custom_minimum_size = Vector2(96, 40)
+	_style_button(vip)
+	vip.pressed.connect(func() -> void: _show("vip"))
+	chips.add_child(vip)
 	_body = Label.new()
 	_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_body.add_theme_color_override("font_color", Color("c5cdd8"))
 	column.add_child(_body)
 	_host = Control.new()
 	_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -92,6 +112,7 @@ func _build_bar(column: VBoxContainer) -> void:
 		button.text = item[1]
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.custom_minimum_size = Vector2(0, 64)
+		_style_button(button)
 		button.set_meta("page", item[0])
 		var page := str(item[0])
 		button.pressed.connect(func() -> void:
@@ -111,6 +132,8 @@ func _show(page: String) -> void:
 	var info: Array = PAGES[page]
 	_title.text = info[0]
 	_body.text = info[1]
+	_chip_stage.text = "Стадия %d" % Roster.stage
+	_chip_gold.text = "Золото: нет"
 	if page == "city":
 		_body.text += "\nСтадия %d. Золото не копится." % Roster.stage
 	elif page == "campaign":
@@ -121,10 +144,26 @@ func _show(page: String) -> void:
 		_city()
 	elif page == "heroes":
 		_heroes()
+	elif page == "profile":
+		_profile()
 	elif page == "formation":
 		_formation()
 	elif page == "more":
 		_more()
+	elif page == "shop":
+		_shop()
+	elif page == "vip":
+		_vip()
+	elif page == "settings":
+		_settings()
+	elif page == "inventory":
+		_inventory()
+	elif page == "quests":
+		_quests()
+	elif page == "summon":
+		_summon()
+	elif page == "guild" or page == "dungeons":
+		_closed()
 	elif page == "campaign" or page == "arena":
 		_action("В бой", func() -> void:
 			get_tree().change_scene_to_file("res://scenes/battle.tscn")
@@ -181,6 +220,7 @@ func _city() -> void:
 		["guild", "Гильдия"],
 		["dungeons", "Подземелья"],
 		["shop", "Магазин"],
+		["vip", "VIP"],
 		["quests", "Задания"],
 		["settings", "Настройки"],
 	]:
@@ -192,6 +232,7 @@ func _nav_button(page: String, text: String) -> Button:
 	button.text = text
 	button.custom_minimum_size = Vector2(0, 72)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_style_button(button)
 	button.pressed.connect(func() -> void:
 		if page == "arena":
 			get_tree().change_scene_to_file("res://scenes/battle.tscn")
@@ -212,21 +253,29 @@ func _heroes() -> void:
 			role = "стрелок, стоит"
 		elif str(row["role"]) == "healer":
 			role = "целитель"
-		column.add_child(_card(str(row["name"]), "%s, %s. Уровень %d, копий %d. %d HP, удар %d. Уровень не растёт." % [str(row["rarity"]), role, int(row["level"]), int(row["copies"]), int(row["hp"]), int(row["atk"])]))
+		column.add_child(_card(str(row["name"]), "%s, %s. Уровень %d, копий %d. %d HP, удар %d." % [str(row["rarity"]), role, int(row["level"]), int(row["copies"]), int(row["hp"]), int(row["atk"])]))
+		var picked := str(hero_id)
+		column.add_child(_text_button("Профиль", func() -> void:
+			_open_hero = picked
+			_show("profile")
+		))
 	column.add_child(_nav_button("preview", "3D в бою"))
 
 
 func _card(title: String, text: String) -> PanelContainer:
 	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _panel_box())
 	var column := VBoxContainer.new()
 	panel.add_child(column)
 	var heading := Label.new()
 	heading.text = title
 	heading.add_theme_font_size_override("font_size", 28)
+	heading.add_theme_color_override("font_color", Color("f4efe4"))
 	column.add_child(heading)
 	var body := Label.new()
 	body.text = text
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.add_theme_color_override("font_color", Color("c5cdd8"))
 	column.add_child(body)
 	return panel
 
@@ -265,6 +314,7 @@ func _slot_button(index: int) -> Button:
 	var row: Dictionary = Roster.combat(str(Roster.slots[index]))
 	button.text = str(row["name"])
 	button.custom_minimum_size = Vector2(150, 88)
+	_style_button(button)
 	button.pressed.connect(func() -> void:
 		Roster.cycle_slot(index)
 		_show("formation")
@@ -280,7 +330,7 @@ func _more() -> void:
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.add_theme_constant_override("separation", 10)
 	scroll.add_child(column)
-	for page in ["guild", "dungeons", "shop", "quests", "inventory", "settings", "preview", "campaign"]:
+	for page in ["shop", "vip", "inventory", "settings", "quests", "guild", "dungeons", "preview", "campaign"]:
 		column.add_child(_nav_button(page, PAGES[page][0]))
 
 
@@ -291,5 +341,134 @@ func _action(text: String, action: Callable) -> void:
 	button.text = text
 	button.custom_minimum_size = Vector2(240, 72)
 	button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_style_button(button)
 	button.pressed.connect(action)
 	column.add_child(button)
+
+
+func _profile() -> void:
+	var row: Dictionary = Roster.combat(_open_hero)
+	var column := _scroll_column()
+	var role := "танк, подходит к врагу"
+	if str(row["role"]) == "ranger":
+		role = "стрелок, стоит на месте"
+	elif str(row["role"]) == "healer":
+		role = "целитель"
+	column.add_child(_card(str(row["name"]), "%s. %s.\nУровень %d, копий %d. %d HP, удар %d, защита %d.\nId %s. Уровень не растёт: золото сервера не подключено." % [str(row["rarity"]), role, int(row["level"]), int(row["copies"]), int(row["hp"]), int(row["atk"]), int(row["def"]), str(row["id"])]))
+	column.add_child(_center_label("Снаряжение"))
+	for slot_name in ["Оружие", "Шлем", "Доспех", "Сапоги", "Кольцо", "Амулет", "Артефакт"]:
+		column.add_child(_card(slot_name, "Пусто. Надеть нельзя."))
+	column.add_child(_text_button("3D в бою", func() -> void:
+		get_tree().change_scene_to_file("res://scenes/battle.tscn")
+	))
+
+
+func _shop() -> void:
+	var column := _scroll_column()
+	column.add_child(_center_label("Донат"))
+	for pack in ["Малый набор", "Средний набор", "Большой набор"]:
+		column.add_child(_card(pack, "Кнопки оплаты нет. Деньги не списываются, награда не выдаётся."))
+	column.add_child(_center_label("Лавка"))
+	column.add_child(_card("Золото и снаряжение", "Витрина пустая. Купить нельзя."))
+
+
+func _vip() -> void:
+	var column := _scroll_column()
+	column.add_child(_card("Сейчас VIP 0", "Бонусы не действуют. Покупка не подключена."))
+	column.add_child(_card("VIP 1", "Каркас: лишняя награда простоя. Не действует."))
+	column.add_child(_card("VIP 2", "Каркас: лишний призыв. Не действует."))
+	column.add_child(_card("VIP 3", "Каркас: рамка профиля. Не действует."))
+	column.add_child(_text_button("Открыть оплату", func() -> void:
+		_body.text = "Оплаты нет. VIP остаётся 0, ничего не списано и не выдано."
+	))
+
+
+func _settings() -> void:
+	var column := _scroll_column()
+	column.add_child(_card("Аккаунт", "Гость не создавался. Сервер не вызывался. Почта восстановления на сервере отвечает 501."))
+	column.add_child(_card("Язык", "Русский. Других языков в клиенте нет."))
+	column.add_child(_card("Звук", "Звука в игре нет, переключать нечего."))
+	column.add_child(_card("Бой", "Считается на телефоне из отряда. Награда не выдаётся."))
+	column.add_child(_card("Версия", "0.1.9, подпись debug, не для магазина."))
+
+
+func _inventory() -> void:
+	var column := _scroll_column()
+	for slot_name in ["Оружие", "Шлем", "Доспех", "Сапоги", "Кольцо", "Амулет", "Артефакт"]:
+		column.add_child(_card(slot_name, "Пусто."))
+
+
+func _quests() -> void:
+	var column := _scroll_column()
+	column.add_child(_card("Ежедневные", "Пусто. Награды нет."))
+	column.add_child(_card("Недельные", "Пусто. Награды нет."))
+
+
+func _summon() -> void:
+	var column := _scroll_column()
+	column.add_child(_card("Круг призыва", "На сервере это стоит 50 золота. Здесь кнопка сервер не вызывает."))
+	column.add_child(_text_button("Призвать", func() -> void:
+		_body.text = "Не вызвано. Герой не добавлен, золото не списано."
+	))
+
+
+func _closed() -> void:
+	var column := _scroll_column()
+	column.add_child(_card("Закрыто", "Раздел есть на экране. Совместной игры и отдельных боёв нет."))
+
+
+func _scroll_column() -> VBoxContainer:
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_mount(scroll)
+	var column := VBoxContainer.new()
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	column.add_theme_constant_override("separation", 10)
+	scroll.add_child(column)
+	return column
+
+
+func _text_button(text: String, action: Callable) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.custom_minimum_size = Vector2(0, 64)
+	_style_button(button)
+	button.pressed.connect(action)
+	return button
+
+
+func _chip(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_color_override("font_color", Color("f4efe4"))
+	label.add_theme_font_size_override("font_size", 16)
+	return label
+
+
+func _panel_box() -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color("243044")
+	box.border_color = Color("3d4a5c")
+	box.set_border_width_all(1)
+	box.set_corner_radius_all(12)
+	box.content_margin_left = 14
+	box.content_margin_top = 10
+	box.content_margin_right = 14
+	box.content_margin_bottom = 10
+	return box
+
+
+func _style_button(button: Button) -> void:
+	var normal := _panel_box()
+	normal.content_margin_left = 8
+	normal.content_margin_right = 8
+	var hover := normal.duplicate() as StyleBoxFlat
+	hover.bg_color = Color("314158")
+	var pressed := normal.duplicate() as StyleBoxFlat
+	pressed.bg_color = Color("1a2433")
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", pressed)
+	button.add_theme_stylebox_override("disabled", pressed)
+	button.add_theme_color_override("font_color", Color("f4efe4"))
+	button.add_theme_color_override("font_disabled_color", Color("8d96a3"))
