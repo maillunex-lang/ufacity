@@ -120,10 +120,10 @@ func _frame_camera() -> void:
 	var aspect := 0.56
 	if view.y > 1.0:
 		aspect = clampf(view.x / view.y, 0.4, 2.2)
-	var half_h := deg_to_rad(36.0)
+	var half_h := deg_to_rad(30.0)
 	var half_v := atan(tan(half_h) / aspect)
 	camera.fov = rad_to_deg(half_v * 2.0)
-	camera.position = Vector3(-18, 24, 0)
+	camera.position = Vector3(-14, 18, 0)
 	camera.look_at(Vector3(0, 0, 0))
 
 
@@ -656,7 +656,7 @@ func _apply_rate() -> void:
 
 
 func _pose_scale(unit: Node) -> float:
-	var slow := 0.75 if str(unit.get_meta("pose", "")) == "move" else 1.0
+	var slow := 1.15 if str(unit.get_meta("pose", "")) == "move" else 1.0
 	return slow * float(_rate)
 
 
@@ -802,7 +802,7 @@ func _play(root: Node, clip: String) -> void:
 		var anim := player.get_animation(actual)
 		if anim != null and (clip == "idle" or clip == "move"):
 			anim.loop_mode = Animation.LOOP_LINEAR
-		player.speed_scale = 0.75 * float(_rate) if clip == "move" else float(_rate)
+		player.speed_scale = 1.15 * float(_rate) if clip == "move" else float(_rate)
 		player.play(actual)
 	elif player.has_animation("idle"):
 		player.play("idle")
