@@ -1,0 +1,28 @@
+name: android-apk
+
+# Ручной запуск. Этот файл ещё ни разу не выполнялся из записанного аудита.
+# Он не выпускает APK, пока в репозитории нет проверенного экспорта Godot.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record that export is not available yet
+        run: |
+          mkdir -p dist
+          cat > dist/EXPORT_STATUS.txt << 'EOF'
+          NOT AN APK.
+          Godot editor and Android export templates were not available when this workflow was added.
+          A debug or release keystore must stay outside the repository.
+          Do not treat a green run of this job as an Android test.
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: export-status
+          path: dist/EXPORT_STATUS.txt

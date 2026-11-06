@@ -6,6 +6,7 @@
 # Builds
 build/
 bin/
+dist/*.apk
 *.apk
 *.aab
 *.exe
@@ -22,6 +23,12 @@ bin/
 *.pem
 *.key
 *.p12
+
+# Python
+__pycache__/
+.pytest_cache/
+.venv/
+*.pyc
 
 # OS and editors
 .DS_Store
