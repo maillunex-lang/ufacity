@@ -78,7 +78,12 @@ func _load_log() -> void:
 		push_error("Sample log is not JSON")
 		return
 	for unit in parsed.get("units", []):
-		_spawn(str(unit["id"]), str(unit.get("model", "TEMP")), int(unit.get("max_hp", unit.get("hp", 1))))
+		var unit_id := str(unit["id"])
+		var model := str(unit.get("model", "TEMP"))
+		var chosen := Roster.model_for(unit_id)
+		if chosen != "":
+			model = chosen
+		_spawn(unit_id, model, int(unit.get("max_hp", unit.get("hp", 1))))
 	_events = parsed.get("events", [])
 	var winner := str(parsed.get("winner", "draw"))
 	var title := "Ничья"
