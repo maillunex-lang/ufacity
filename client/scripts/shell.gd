@@ -443,6 +443,9 @@ func _heroes() -> void:
 		column.add_child(button)
 	column.add_child(_nav_button("formation", "Отряд"))
 	column.add_child(_nav_button("preview", "3D в бою"))
+	column.add_child(_text_button("Уралдар: анимации", func() -> void:
+		get_tree().change_scene_to_file("res://scenes/UraldarAnimationPreview.tscn")
+	))
 
 
 func _card(title: String, text: String) -> PanelContainer:

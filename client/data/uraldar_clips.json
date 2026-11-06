@@ -1,0 +1,23 @@
+{
+  "hero": "Уралдар",
+  "faction": "Наследники Урала",
+  "source_file": "Meshy_AI_uraldar_hero_rig_20261106_animated_mixamo_All_animation.glb",
+  "imported_as": "res://assets/heroes/uraldar.glb",
+  "visual_review": "not_approved",
+  "note": "Названия клипов проверены в файле. Какой клип подходит навыку, на экране ещё не утверждено.",
+  "loop": ["Running", "Walking", "Combat_Stance"],
+  "oneshot": ["Charged_Slash", "Dead", "Hit_Reaction", "Left_Slash", "Skill_01", "Sword_Shout", "Thrust_Slash"],
+  "unassigned": ["Thrust_Slash"],
+  "actions": {
+    "idle": {"clip": "Combat_Stance", "status": "candidate"},
+    "run": {"clip": "Running", "status": "candidate"},
+    "walk": {"clip": "Walking", "status": "candidate"},
+    "attack_1": {"clip": "Left_Slash", "label": "короткий удар", "effect": "trail", "status": "candidate"},
+    "attack_2": {"clip": "Charged_Slash", "label": "широкий удар", "effect": "arc", "status": "candidate"},
+    "skill_1": {"clip": "Skill_01", "label": "Рассечение гор", "effect": "wave", "status": "candidate"},
+    "skill_2": {"clip": "Sword_Shout", "label": "Клятва батыра", "effect": "dome", "status": "candidate"},
+    "skill_3": {"clip": "Sword_Shout", "label": "Дух Урала", "effect": "aura", "status": "reuse", "needs_unique_clip": true},
+    "hit": {"clip": "Hit_Reaction", "status": "candidate"},
+    "death": {"clip": "Dead", "status": "candidate"}
+  }
+}
