@@ -12,12 +12,14 @@ const MODEL_FILE := {
 const CLIP_ALIAS := {
 	"swordsman": {
 		"idle": "Idle_9",
+		"move": "Walking",
 		"attack": "Thrust_Slash",
 		"skill": "Jump_and_Slam_Back_Down",
 		"death": "Dead",
 	},
 	"priest": {
 		"idle": "Idle_11",
+		"move": "Walking",
 		"attack": "Attack",
 		"skill": "Charged_Spell_Cast",
 		"hit": "Hit_Reaction",
@@ -37,6 +39,7 @@ var _fought_stage := 1
 var _left_hp := 0
 var _right_hp := 0
 var _stage_written := false
+var _goals := {}
 
 
 func _ready() -> void:
@@ -55,6 +58,7 @@ func _process(delta: float) -> void:
 	if _cursor >= _events.size() and _events.size() > 0 and _result.visible == false:
 		_result.visible = true
 		_commit_stage()
+	_slide(delta)
 
 
 func _build_hud() -> void:
@@ -198,7 +202,9 @@ func _spawn(id: String, model: String, max_hp: int) -> void:
 	root.add_child(label)
 	add_child(root)
 	_units[id] = root
-	_play(root, "idle")
+	_goals[id] = root.position
+	_hook_anim(root)
+	_set_pose(root, "idle")
 
 
 func _file_id(model: String) -> String:
@@ -224,23 +230,26 @@ func _apply(event: Dictionary) -> void:
 		if unit == null:
 			return
 		var to: Array = event.get("to", [0, 0, 0])
-		unit.position = Vector3(float(to[0]), float(to[1]), float(to[2]))
+		_goals[str(event.get("unit", ""))] = Vector3(float(to[0]), float(to[1]), float(to[2]))
+		if not bool(unit.get_meta("down", false)) and str(unit.get_meta("pose", "")) != "attack" and str(unit.get_meta("pose", "")) != "skill":
+			_set_pose(unit, "move")
 	elif kind == "attack" or kind == "heal":
 		var src = _units.get(str(event.get("src", "")))
 		if src != null:
-			_play(src, "attack" if kind == "attack" else "skill")
+			_set_pose(src, "attack" if kind == "attack" else "skill")
 		var dst = _units.get(str(event.get("dst", "")))
 		if dst != null and event.has("hp"):
 			dst.set_meta("hp", int(event["hp"]))
 			_refresh_hp(dst)
 			if kind == "attack":
-				_play(dst, "hit")
+				_set_pose(dst, "hit")
 	elif kind == "down":
 		var unit = _units.get(str(event.get("unit", "")))
 		if unit != null:
+			unit.set_meta("down", true)
 			if not bool(unit.get_meta("has_glb")):
 				unit.rotation.z = 1.4
-			_play(unit, "death")
+			_set_pose(unit, "death")
 
 
 func _refresh_hp(unit: Node3D) -> void:
@@ -253,6 +262,45 @@ func _refresh_hp(unit: Node3D) -> void:
 	label.text = lines[0] + "\n%d/%d" % [hp, max_hp]
 
 
+func _slide(delta: float) -> void:
+	for unit_id in _units.keys():
+		var unit: Node3D = _units[unit_id]
+		if not _goals.has(unit_id):
+			continue
+		var goal: Vector3 = _goals[unit_id]
+		unit.position = unit.position.move_toward(goal, delta * 1.6)
+		var walking := unit.position.distance_to(goal) > 0.04
+		var pose := str(unit.get_meta("pose", ""))
+		if bool(unit.get_meta("down", false)):
+			continue
+		if not walking and pose == "move":
+			_set_pose(unit, "idle")
+
+
+func _set_pose(unit: Node, pose: String) -> void:
+	if bool(unit.get_meta("down", false)) and pose != "death":
+		return
+	if str(unit.get_meta("pose", "")) == pose and pose != "attack" and pose != "skill" and pose != "hit":
+		return
+	unit.set_meta("pose", pose)
+	_play(unit, pose)
+
+
+func _hook_anim(unit: Node) -> void:
+	var player := _find_player(unit)
+	if player == null or player.animation_finished.is_connected(_on_anim_finished):
+		return
+	player.animation_finished.connect(_on_anim_finished.bind(unit))
+
+
+func _on_anim_finished(anim_name: StringName, unit: Node) -> void:
+	if bool(unit.get_meta("down", false)):
+		return
+	var pose := str(unit.get_meta("pose", ""))
+	if pose == "attack" or pose == "skill" or pose == "hit":
+		_set_pose(unit, "idle")
+
+
 func _play(root: Node, clip: String) -> void:
 	var player: AnimationPlayer = _find_player(root)
 	if player == null:
@@ -263,6 +311,9 @@ func _play(root: Node, clip: String) -> void:
 	if actual == "":
 		actual = str(table.get("idle", clip))
 	if player.has_animation(actual):
+		var anim := player.get_animation(actual)
+		if anim != null and (clip == "idle" or clip == "move"):
+			anim.loop_mode = Animation.LOOP_LINEAR
 		player.play(actual)
 	elif player.has_animation("idle"):
 		player.play("idle")
