@@ -1,20 +1,28 @@
 extends Control
 
 const PAGES := {
-	"city": ["Город", "Рисунок-заглушка. Финального арта города нет."],
-	"campaign": ["Кампания", "Бой считается на телефоне из отряда. Золото стадии не начисляется: сервер с телефона не вызывается."],
-	"heroes": ["Герои", "В отряде только те, кто уже есть. Повышение уровня серверное, здесь золото не тратится и уровень не растёт."],
+	"city": ["Город", "Один экран. Зданий семь, рисунка города нет."],
+	"campaign": ["Кампания", "Бой считается на телефоне из отряда. Золото стадии не начисляется."],
+	"heroes": ["Герои", "В отряде только те, кто уже есть. Повышение уровня серверное, здесь уровень не растёт."],
 	"preview": ["3D-просмотр", "Отдельной витрины нет. Трёхмерные модели видны в бою."],
 	"formation": ["Отряд", "Два спереди, три сзади. Слот хранит id героя и переключает только полученных. На сервер не уходит."],
 	"inventory": ["Инвентарь", "Шесть слотов и артефакт ещё не работают."],
-	"summon": ["Призыв", "На сервере призыв стоит 50 золота. Этот экран сервер не вызывает и никого не добавляет."],
-	"arena": ["Арена", "Это бой отряда против жрецов первой стадии, не PvP и не рейтинг."],
+	"summon": ["Призыв", "Этот экран сервер не вызывает и никого не добавляет."],
+	"arena": ["Арена", "Рейтинга и PvP нет. Это не бой кампании и наград нет."],
 	"guild": ["Гильдия", "Раздел есть. Совместной игры нет."],
 	"dungeons": ["Подземелья", "Раздел есть. Боёв подземелья нет."],
+	"fortress": ["Крепость", "База игрока. Золото простоя отсюда не выдаётся."],
+	"tavern": ["Таверна", "Гостей нет. Героев и наград не выдаёт."],
+	"world": ["Мир", "Отдельной карты нет. Ниже те же места, что стоят в городе."],
+	"events": ["События", "Событий нет. Наград нет."],
+	"tasks": ["Задания", "Ежедневных заданий нет. Наград нет."],
+	"rewards": ["Награды", "Забрать нечего. Ничего не выдаётся."],
+	"pass": ["Боевой пропуск", "Пропуска нет. Оплаты нет, ничего не выдаётся."],
+	"offers": ["Акции", "Акций нет. Деньги не списываются и награды не выдаются."],
 	"shop": ["Магазин", "Лавка и донат только нарисованы. Оплаты нет, ничего не списывается и не выдаётся."],
 	"vip": ["VIP", "Скорость боя зависит от VIP. Повысить его с телефона нельзя."],
 	"profile": ["Профиль", "Карточка героя. Снаряжение пустое, уровень не растёт."],
-	"quests": ["Задания", "Список пуст. Наград нет."],
+	"quests": ["Квесты", "Список пуст. Наград нет."],
 	"settings": ["Настройки", "Аккаунт, язык и версия. Сервер с телефона не вызывается."],
 	"idle": ["Сбор", "Быстрый сбор наград простоя. Сервер не вызывается, золото не выдаётся."],
 	"mail": ["Почта", "Входящих нет. Вложения не выдаются."],
@@ -32,9 +40,13 @@ var _host: Control
 var _bar_buttons: Array[Button] = []
 var _page := "city"
 var _open_hero := "temp_a"
-var _chip_stage: Label
 var _chip_gold: Label
+var _chip_gems: Label
 var _chip_vip: Button
+var _parallax_far: Control
+var _parallax_near: Control
+var _bobs: Array = []
+var _clock := 0.0
 
 
 func _ready() -> void:
@@ -56,20 +68,30 @@ func _ready() -> void:
 	_title.add_theme_font_size_override("font_size", 34)
 	_title.add_theme_color_override("font_color", Color("f4efe4"))
 	column.add_child(_title)
-	var chips := HBoxContainer.new()
-	chips.add_theme_constant_override("separation", 8)
-	column.add_child(chips)
-	_chip_stage = _chip("Стадия 1")
-	_chip_gold = _chip("Золото: нет")
-	chips.add_child(_chip_stage)
-	chips.add_child(_chip_gold)
+	var top := VBoxContainer.new()
+	top.add_theme_constant_override("separation", 6)
+	column.add_child(top)
+	var top_row := HBoxContainer.new()
+	top_row.add_theme_constant_override("separation", 6)
+	top.add_child(top_row)
+	top_row.add_child(_top_button("Профиль", func() -> void: _show("profile")))
 	var vip := Button.new()
 	_chip_vip = vip
 	vip.text = "VIP 0"
-	vip.custom_minimum_size = Vector2(96, 40)
+	vip.custom_minimum_size = Vector2(88, 44)
+	vip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_style_button(vip)
 	vip.pressed.connect(func() -> void: _show("vip"))
-	chips.add_child(vip)
+	top_row.add_child(vip)
+	top_row.add_child(_top_button("Почта", func() -> void: _show("mail")))
+	top_row.add_child(_top_button("Настройки", func() -> void: _show("settings")))
+	var money := HBoxContainer.new()
+	money.add_theme_constant_override("separation", 12)
+	top.add_child(money)
+	_chip_gold = _chip("Золото: нет")
+	_chip_gems = _chip("Алмазы: нет")
+	money.add_child(_chip_gold)
+	money.add_child(_chip_gems)
 	_body = Label.new()
 	_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_body.add_theme_color_override("font_color", Color("c5cdd8"))
@@ -115,7 +137,7 @@ func _build_bar(column: VBoxContainer) -> void:
 	bar.add_theme_constant_override("separation", 8)
 	bar.custom_minimum_size = Vector2(0, 72)
 	column.add_child(bar)
-	for item in [["city", "Город"], ["heroes", "Герои"], ["arena", "Бой"], ["summon", "Призыв"], ["more", "Ещё"]]:
+	for item in [["heroes", "Герои"], ["inventory", "Инвентарь"], ["city", "Город"], ["quests", "Квесты"], ["world", "Мир"]]:
 		var button := Button.new()
 		button.text = item[1]
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -124,12 +146,7 @@ func _build_bar(column: VBoxContainer) -> void:
 		button.set_meta("page", item[0])
 		var page := str(item[0])
 		button.pressed.connect(func() -> void:
-			if page == "more":
-				_show("more")
-			elif page == "arena":
-				get_tree().change_scene_to_file("res://scenes/battle.tscn")
-			else:
-				_show(page)
+			_show(page)
 		)
 		bar.add_child(button)
 		_bar_buttons.append(button)
@@ -140,13 +157,11 @@ func _show(page: String) -> void:
 	var info: Array = PAGES[page]
 	_title.text = info[0]
 	_body.text = info[1]
-	_chip_stage.text = "Стадия %d" % Roster.stage
+	_title.visible = page != "city"
+	_body.visible = page != "city"
 	_chip_gold.text = "Золото: нет"
+	_chip_gems.text = "Алмазы: нет"
 	_chip_vip.text = "VIP %d" % Roster.vip
-	if page == "city":
-		_body.text += "\nСтадия %d. Золото не копится." % Roster.stage
-	elif page == "campaign" or page == "arena":
-		_body.text = "Стадия %d. Ниже состав врагов. Золото не копится." % Roster.stage
 	_clear_host()
 	_mark_bar()
 	if page == "city":
@@ -185,8 +200,17 @@ func _show(page: String) -> void:
 		_summon()
 	elif page == "guild" or page == "dungeons":
 		_closed()
-	elif page == "campaign" or page == "arena":
+	elif page == "campaign":
+		_body.text = "Стадия %d. Ниже состав врагов. Золото не копится." % Roster.stage
 		_before_battle()
+	elif page == "arena":
+		_plain()
+	elif page == "fortress":
+		_fortress()
+	elif page == "world":
+		_world()
+	elif page == "tavern" or page == "events" or page == "tasks" or page == "rewards" or page == "pass" or page == "offers":
+		_plain()
 	elif page == "preview":
 		_action("Открыть бой", func() -> void:
 			get_tree().change_scene_to_file("res://scenes/battle.tscn")
@@ -199,6 +223,9 @@ func _mark_bar() -> void:
 
 
 func _clear_host() -> void:
+	_bobs.clear()
+	_parallax_far = null
+	_parallax_near = null
 	for child in _host.get_children():
 		_host.remove_child(child)
 		child.free()
@@ -209,51 +236,156 @@ func _mount(node: Control) -> void:
 	_host.add_child(node)
 
 
+func _process(delta: float) -> void:
+	if _page != "city" or _bobs.is_empty():
+		return
+	_clock += delta
+	if is_instance_valid(_parallax_far):
+		_parallax_far.position.x = sin(_clock * 0.18) * 16.0
+	if is_instance_valid(_parallax_near):
+		_parallax_near.position.x = sin(_clock * 0.22) * 8.0
+	for bob in _bobs:
+		var node: Control = bob["node"]
+		if not is_instance_valid(node):
+			continue
+		var shift := sin(_clock * 1.15 + float(bob["phase"])) * 3.0
+		node.offset_top = float(bob["top"]) + shift
+		node.offset_bottom = float(bob["bottom"]) + shift
+
+
 func _city() -> void:
-	var scroll := ScrollContainer.new()
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_mount(scroll)
-	var column := VBoxContainer.new()
-	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	column.add_theme_constant_override("separation", 12)
-	scroll.add_child(column)
-	var art := ColorRect.new()
-	art.color = Color("243044")
-	art.custom_minimum_size = Vector2(0, 140)
-	column.add_child(art)
-	var art_label := Label.new()
-	art_label.text = "Место рисунка города"
-	art_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	art_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	art_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	art.add_child(art_label)
-	var tools := HBoxContainer.new()
-	tools.add_theme_constant_override("separation", 8)
-	column.add_child(tools)
-	for item in [["idle", "Сбор"], ["mail", "Почта"], ["chats", "Чаты"]]:
-		var button := _nav_button(item[0], item[1])
-		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		tools.add_child(button)
-	var grid := GridContainer.new()
-	grid.columns = 3
-	grid.add_theme_constant_override("h_separation", 10)
-	grid.add_theme_constant_override("v_separation", 10)
-	column.add_child(grid)
-	for item in [
-		["campaign", "Кампания"],
-		["heroes", "Герои"],
-		["formation", "Отряд"],
-		["inventory", "Инвентарь"],
-		["summon", "Призыв"],
-		["arena", "Арена"],
-		["guild", "Гильдия"],
-		["dungeons", "Подземелья"],
-		["shop", "Магазин"],
-		["vip", "VIP"],
-		["quests", "Задания"],
-		["settings", "Настройки"],
-	]:
-		grid.add_child(_nav_button(item[0], item[1]))
+	var root := Control.new()
+	_mount(root)
+	_parallax_far = _hill_layer(Color("24362c"), 220.0)
+	_parallax_near = _hill_layer(Color("31483a"), 140.0)
+	root.add_child(_parallax_far)
+	root.add_child(_parallax_near)
+	var spots := [
+		{"page": "fortress", "title": "Крепость", "color": "8d6a3a", "x": 0.50, "y": 0.02, "phase": 0.0},
+		{"page": "summon", "title": "Призыв", "color": "3d6d8c", "x": 0.18, "y": 0.26, "phase": 0.8},
+		{"page": "tavern", "title": "Таверна", "color": "7a4e3a", "x": 0.78, "y": 0.24, "phase": 1.4},
+		{"page": "guild", "title": "Гильдия", "color": "3e6b52", "x": 0.16, "y": 0.50, "phase": 2.0},
+		{"page": "arena", "title": "Арена", "color": "8a3d3d", "x": 0.50, "y": 0.48, "phase": 2.6},
+		{"page": "campaign", "title": "Кампания", "color": "4d5d86", "x": 0.82, "y": 0.50, "phase": 3.1},
+		{"page": "dungeons", "title": "Подземелья", "color": "4a4458", "x": 0.50, "y": 0.74, "phase": 3.8},
+	]
+	for spot in spots:
+		var button := _building_button(str(spot["page"]), str(spot["title"]), Color(str(spot["color"])))
+		root.add_child(button)
+		_bobs.append({"node": button, "x": float(spot["x"]), "y": float(spot["y"]), "phase": float(spot["phase"]), "top": 0.0, "bottom": 0.0})
+	var rail := VBoxContainer.new()
+	rail.add_theme_constant_override("separation", 6)
+	rail.anchor_left = 1.0
+	rail.anchor_right = 1.0
+	rail.anchor_top = 0.0
+	rail.anchor_bottom = 1.0
+	rail.offset_left = -104.0
+	rail.offset_right = -4.0
+	rail.offset_top = 4.0
+	rail.offset_bottom = -4.0
+	root.add_child(rail)
+	for item in [["events", "События"], ["tasks", "Задания"], ["rewards", "Награды"], ["pass", "Боевой пропуск"], ["offers", "Акции"]]:
+		var side := Button.new()
+		side.text = item[1]
+		side.custom_minimum_size = Vector2(96, 48)
+		side.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		side.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		side.clip_text = true
+		_style_button(side)
+		var side_page := str(item[0])
+		side.pressed.connect(func() -> void: _show(side_page))
+		rail.add_child(side)
+	root.resized.connect(_place_buildings)
+	_place_buildings()
+
+
+func _hill_layer(color: Color, height: float) -> ColorRect:
+	var hill := ColorRect.new()
+	hill.color = color
+	hill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hill.anchor_left = -0.08
+	hill.anchor_right = 1.08
+	hill.anchor_top = 1.0
+	hill.anchor_bottom = 1.0
+	hill.offset_top = -height
+	hill.offset_bottom = 24.0
+	return hill
+
+
+func _place_buildings() -> void:
+	if _bobs.is_empty():
+		return
+	var node0: Control = _bobs[0]["node"]
+	var root := node0.get_parent() as Control
+	if root == null:
+		return
+	var usable := maxf(root.size.x - 112.0, 180.0)
+	var height := maxf(root.size.y, 320.0)
+	var bw := clampf(usable * 0.30, 96.0, 150.0)
+	for bob in _bobs:
+		var node: Control = bob["node"]
+		var left := float(bob["x"]) * usable - bw * 0.5
+		var top := float(bob["y"]) * (height - 96.0)
+		bob["top"] = top
+		bob["bottom"] = top + 84.0
+		node.anchor_left = 0.0
+		node.anchor_right = 0.0
+		node.anchor_top = 0.0
+		node.anchor_bottom = 0.0
+		node.offset_left = left
+		node.offset_right = left + bw
+		node.offset_top = top
+		node.offset_bottom = top + 84.0
+
+
+func _building_button(page: String, title: String, color: Color) -> Button:
+	var button := Button.new()
+	button.text = title
+	button.add_theme_font_size_override("font_size", 18)
+	button.add_theme_color_override("font_color", Color("f4efe4"))
+	var style := StyleBoxFlat.new()
+	style.bg_color = color
+	style.set_corner_radius_all(10)
+	style.content_margin_left = 6
+	style.content_margin_right = 6
+	style.content_margin_top = 16
+	style.content_margin_bottom = 8
+	button.add_theme_stylebox_override("normal", style)
+	var hover := style.duplicate() as StyleBoxFlat
+	hover.bg_color = color.lightened(0.12)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", hover)
+	button.pressed.connect(func() -> void: _show(page))
+	return button
+
+
+func _top_button(text: String, action: Callable) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.custom_minimum_size = Vector2(0, 44)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.clip_text = true
+	_style_button(button)
+	button.pressed.connect(action)
+	return button
+
+
+func _plain() -> void:
+	var column := _scroll_column()
+	column.add_child(_card(_title.text, _body.text))
+
+
+func _fortress() -> void:
+	var column := _scroll_column()
+	column.add_child(_card("Крепость", "База игрока. Быстрый сбор открывается здесь и ничего не выдаёт."))
+	column.add_child(_text_button("Сбор", func() -> void: _show("idle")))
+
+
+func _world() -> void:
+	var column := _scroll_column()
+	column.add_child(_card("Мир", "Отдельной карты нет. Ниже те же места, что стоят в городе."))
+	for item in [["campaign", "Кампания"], ["arena", "Арена"], ["dungeons", "Подземелья"], ["guild", "Гильдия"], ["fortress", "Крепость"], ["formation", "Отряд"], ["chats", "Чаты"], ["shop", "Магазин"]]:
+		column.add_child(_nav_button(item[0], item[1]))
 
 
 func _nav_button(page: String, text: String) -> Button:
@@ -263,10 +395,7 @@ func _nav_button(page: String, text: String) -> Button:
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_style_button(button)
 	button.pressed.connect(func() -> void:
-		if page == "arena":
-			get_tree().change_scene_to_file("res://scenes/battle.tscn")
-		else:
-			_show(page)
+		_show(page)
 	)
 	return button
 
@@ -294,6 +423,7 @@ func _heroes() -> void:
 			_show("profile")
 		)
 		column.add_child(button)
+	column.add_child(_nav_button("formation", "Отряд"))
 	column.add_child(_nav_button("preview", "3D в бою"))
 
 
