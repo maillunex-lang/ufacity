@@ -20,9 +20,7 @@ jobs:
             -v "$PWD:/workspace" \
             -w /workspace/client \
             barichello/godot-ci:4.3 \
-            bash -lc 'godot --headless --import --quit && godot --headless --verbose --export-debug "Android" /workspace/build/ufacity-debug.apk'
-          test -s build/ufacity-debug.apk
-          ls -lh build/ufacity-debug.apk
+            bash -lc 'bash /workspace/.github/export-android.sh'
 
       - uses: actions/upload-artifact@v4
         with:
