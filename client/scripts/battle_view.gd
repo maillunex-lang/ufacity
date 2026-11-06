@@ -40,6 +40,8 @@ var _left_hp := 0
 var _right_hp := 0
 var _stage_written := false
 var _goals := {}
+var _rate := 1
+var _speed_note: Label
 
 
 func _ready() -> void:
@@ -85,14 +87,15 @@ func _frame_camera() -> void:
 
 
 func _process(delta: float) -> void:
-	_time += delta
+	var scaled := delta * float(_rate)
+	_time += scaled
 	while _cursor < _events.size() and float(_events[_cursor].get("t", 0.0)) <= _time:
 		_apply(_events[_cursor])
 		_cursor += 1
 	if _cursor >= _events.size() and _events.size() > 0 and _result.visible == false:
 		_result.visible = true
 		_commit_stage()
-	_slide(delta)
+	_slide(scaled)
 
 
 func _build_hud() -> void:
@@ -114,6 +117,25 @@ func _build_hud() -> void:
 		get_tree().change_scene_to_file("res://scenes/main.tscn")
 	)
 	column.add_child(back)
+	var speeds := HBoxContainer.new()
+	speeds.add_theme_constant_override("separation", 8)
+	column.add_child(speeds)
+	for rate in [1, 2, 4]:
+		var button := Button.new()
+		button.text = "x%d" % rate
+		button.custom_minimum_size = Vector2(72, 56)
+		var chosen := int(rate)
+		button.pressed.connect(func() -> void: _try_rate(chosen))
+		speeds.add_child(button)
+	var sim := Button.new()
+	sim.text = "Симуляция"
+	sim.custom_minimum_size = Vector2(150, 56)
+	sim.pressed.connect(_try_sim)
+	speeds.add_child(sim)
+	_speed_note = Label.new()
+	_speed_note.text = "Скорость x1"
+	_speed_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	column.add_child(_speed_note)
 	_result = Label.new()
 	_result.visible = false
 	_result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -239,6 +261,9 @@ func _spawn(id: String, model: String, max_hp: int) -> void:
 	_goals[id] = root.position
 	_hook_anim(root)
 	_set_pose(root, "idle")
+	var player := _find_player(root)
+	if player != null:
+		player.speed_scale = float(_rate)
 
 
 func _file_id(model: String) -> String:
@@ -294,6 +319,31 @@ func _refresh_hp(unit: Node3D) -> void:
 	var max_hp := int(unit.get_meta("max_hp"))
 	var lines := str(label.text).split("\n")
 	label.text = lines[0] + "\n%d/%d" % [hp, max_hp]
+
+
+func _try_rate(rate: int) -> void:
+	if not Roster.allows_rate(rate):
+		var need := 1 if rate == 2 else 4
+		_speed_note.text = "x%d открывается с VIP %d. Сейчас VIP %d, остаётся x%d." % [rate, need, Roster.vip, _rate]
+		return
+	_rate = rate
+	_apply_rate()
+	_speed_note.text = "Скорость x%d" % _rate
+
+
+func _try_sim() -> void:
+	if not Roster.allows_sim():
+		_speed_note.text = "Симуляция открывается с VIP 7. Сейчас VIP %d." % Roster.vip
+		return
+	_time = 100000.0
+	_speed_note.text = "Бой просчитан сразу."
+
+
+func _apply_rate() -> void:
+	for unit_id in _units.keys():
+		var player := _find_player(_units[unit_id])
+		if player != null:
+			player.speed_scale = float(_rate)
 
 
 func _slide(delta: float) -> void:

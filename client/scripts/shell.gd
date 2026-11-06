@@ -12,7 +12,7 @@ const PAGES := {
 	"guild": ["Гильдия", "Раздел есть. Совместной игры нет."],
 	"dungeons": ["Подземелья", "Раздел есть. Боёв подземелья нет."],
 	"shop": ["Магазин", "Лавка и донат только нарисованы. Оплаты нет, ничего не списывается и не выдаётся."],
-	"vip": ["VIP", "Уровень VIP 0. Бонусы не действуют и не покупаются."],
+	"vip": ["VIP", "Скорость боя зависит от VIP. Повысить его с телефона нельзя."],
 	"profile": ["Профиль", "Карточка героя. Снаряжение пустое, уровень не растёт."],
 	"quests": ["Задания", "Список пуст. Наград нет."],
 	"settings": ["Настройки", "Аккаунт, язык и версия. Сервер с телефона не вызывается."],
@@ -34,6 +34,7 @@ var _page := "city"
 var _open_hero := "temp_a"
 var _chip_stage: Label
 var _chip_gold: Label
+var _chip_vip: Button
 
 
 func _ready() -> void:
@@ -63,6 +64,7 @@ func _ready() -> void:
 	chips.add_child(_chip_stage)
 	chips.add_child(_chip_gold)
 	var vip := Button.new()
+	_chip_vip = vip
 	vip.text = "VIP 0"
 	vip.custom_minimum_size = Vector2(96, 40)
 	_style_button(vip)
@@ -140,6 +142,7 @@ func _show(page: String) -> void:
 	_body.text = info[1]
 	_chip_stage.text = "Стадия %d" % Roster.stage
 	_chip_gold.text = "Золото: нет"
+	_chip_vip.text = "VIP %d" % Roster.vip
 	if page == "city":
 		_body.text += "\nСтадия %d. Золото не копится." % Roster.stage
 	elif page == "campaign":
@@ -402,12 +405,13 @@ func _shop() -> void:
 
 func _vip() -> void:
 	var column := _scroll_column()
-	column.add_child(_card("Сейчас VIP 0", "Бонусы не действуют. Покупка не подключена."))
-	column.add_child(_card("VIP 1", "Каркас: лишняя награда простоя. Не действует."))
-	column.add_child(_card("VIP 2", "Каркас: лишний призыв. Не действует."))
-	column.add_child(_card("VIP 3", "Каркас: рамка профиля. Не действует."))
+	column.add_child(_card("Сейчас VIP %d" % Roster.vip, "Телефон сам уровень не поднимает. Оплаты нет."))
+	column.add_child(_card("VIP 0", "В бою только x1. Это значение по умолчанию."))
+	column.add_child(_card("VIP 1", "Открывает x2."))
+	column.add_child(_card("VIP 4", "Открывает x4."))
+	column.add_child(_card("VIP 7", "Открывает симуляцию: бой просчитывается сразу, без просмотра."))
 	column.add_child(_text_button("Открыть оплату", func() -> void:
-		_body.text = "Оплаты нет. VIP остаётся 0, ничего не списано и не выдано."
+		_body.text = "Оплаты нет. VIP остаётся %d, ничего не списано и не выдано." % Roster.vip
 	))
 
 

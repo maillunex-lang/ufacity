@@ -11,6 +11,7 @@ const OWNED_ORDER := ["temp_a", "temp_b", "temp_c"]
 var slots: Array = ["temp_a", "temp_a", "temp_b", "temp_b", "temp_b"]
 var heroes := {"temp_a": {"level": 1, "copies": 1}, "temp_b": {"level": 1, "copies": 1}}
 var stage := 1
+var vip := 0
 
 
 func _ready() -> void:
@@ -28,6 +29,7 @@ func _load() -> void:
 		return
 	_read_slots(parsed.get("slots", []))
 	stage = maxi(1, int(parsed.get("stage", 1)))
+	vip = maxi(0, int(parsed.get("vip", 0)))
 	var stored = parsed.get("heroes", {})
 	if typeof(stored) != TYPE_DICTIONARY:
 		return
@@ -113,8 +115,22 @@ func combat(hero_id: String) -> Dictionary:
 	}
 
 
+func allows_rate(rate: int) -> bool:
+	if rate <= 1:
+		return true
+	if rate == 2:
+		return vip >= 1
+	if rate == 4:
+		return vip >= 4
+	return false
+
+
+func allows_sim() -> bool:
+	return vip >= 7
+
+
 func _save() -> void:
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
 		return
-	file.store_string(JSON.stringify({"slots": slots, "stage": stage, "heroes": heroes}))
+	file.store_string(JSON.stringify({"slots": slots, "stage": stage, "heroes": heroes, "vip": vip}))
