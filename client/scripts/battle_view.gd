@@ -57,7 +57,7 @@ func _make_arena() -> void:
 	if old != null:
 		old.free()
 	var disc := CSGCylinder3D.new()
-	disc.radius = 8.2
+	disc.radius = 10.5
 	disc.height = 0.28
 	disc.position = Vector3(0, -0.14, 0)
 	var stone := StandardMaterial3D.new()
@@ -79,7 +79,7 @@ func _frame_camera() -> void:
 	var aspect := 0.56
 	if view.y > 1.0:
 		aspect = clampf(view.x / view.y, 0.4, 2.2)
-	var half_h := deg_to_rad(25.0)
+	var half_h := deg_to_rad(31.0)
 	var half_v := atan(tan(half_h) / aspect)
 	camera.fov = rad_to_deg(half_v * 2.0)
 	camera.position = Vector3(-22, 12.5, 0)
@@ -200,20 +200,20 @@ func _home(id: String) -> Vector3:
 	var z := 0.0
 	match slot:
 		0:
-			x = -1.6
-			z = 1.2
+			x = -3.2
+			z = 3.0
 		1:
-			x = 1.6
-			z = 1.2
+			x = 3.2
+			z = 3.0
 		2:
-			x = -2.4
-			z = 3.2
+			x = -4.6
+			z = 6.4
 		3:
 			x = 0.0
-			z = 3.2
+			z = 6.8
 		4:
-			x = 2.4
-			z = 3.2
+			x = 4.6
+			z = 6.4
 	if side == "L":
 		z = -z
 	return Vector3(x, 0, z)
