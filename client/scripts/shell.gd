@@ -3,11 +3,11 @@ extends Control
 const PAGES := {
 	"city": ["Город", "Рисунок-заглушка. Финального арта города нет."],
 	"campaign": ["Кампания", "Бой считается на телефоне из отряда. Золото стадии не начисляется: сервер с телефона не вызывается."],
-	"heroes": ["Герои", "Карточки двух моделей. Прокачка, редкость и экипировка не работают."],
+	"heroes": ["Герои", "В отряде только те, кто уже есть. Повышение уровня серверное, здесь золото не тратится и уровень не растёт."],
 	"preview": ["3D-просмотр", "Отдельной витрины нет. Трёхмерные модели видны в бою."],
-	"formation": ["Отряд", "Два спереди, три сзади. Выбор хранится на телефоне и меняет бой. На сервер не уходит."],
+	"formation": ["Отряд", "Два спереди, три сзади. Слот хранит id героя и переключает только полученных. На сервер не уходит."],
 	"inventory": ["Инвентарь", "Шесть слотов и артефакт ещё не работают."],
-	"summon": ["Призыв", "Сервер умеет крутить призыв за своё золото. Этот экран его не вызывает и ничего не выдаёт."],
+	"summon": ["Призыв", "На сервере призыв стоит 50 золота. Этот экран сервер не вызывает и никого не добавляет."],
 	"arena": ["Арена", "Это бой отряда против жрецов первой стадии, не PvP и не рейтинг."],
 	"guild": ["Гильдия", "Раздел есть. Совместной игры нет."],
 	"dungeons": ["Подземелья", "Раздел есть. Боёв подземелья нет."],
@@ -205,8 +205,14 @@ func _heroes() -> void:
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 12)
 	_mount(column)
-	column.add_child(_card("Мечник", "Ближний бой. В расчёте это танк: 120 HP, он подходит к врагу."))
-	column.add_child(_card("Жрец", "Дальний бой. В расчёте это стрелок: 90 HP, стоит на месте."))
+	for hero_id in Roster.owned_ids():
+		var row: Dictionary = Roster.combat(str(hero_id))
+		var role := "танк, подходит"
+		if str(row["role"]) == "ranger":
+			role = "стрелок, стоит"
+		elif str(row["role"]) == "healer":
+			role = "целитель"
+		column.add_child(_card(str(row["name"]), "%s, %s. Уровень %d, копий %d. %d HP, удар %d. Уровень не растёт." % [str(row["rarity"]), role, int(row["level"]), int(row["copies"]), int(row["hp"]), int(row["atk"])]))
 	column.add_child(_nav_button("preview", "3D в бою"))
 
 
@@ -256,12 +262,11 @@ func _center_label(text: String) -> Label:
 
 func _slot_button(index: int) -> Button:
 	var button := Button.new()
-	var model := str(Roster.slots[index])
-	button.text = "Мечник" if model == "swordsman" else "Жрец"
+	var row: Dictionary = Roster.combat(str(Roster.slots[index]))
+	button.text = str(row["name"])
 	button.custom_minimum_size = Vector2(150, 88)
 	button.pressed.connect(func() -> void:
-		var next := "priest" if str(Roster.slots[index]) == "swordsman" else "swordsman"
-		Roster.set_slot(index, next)
+		Roster.cycle_slot(index)
 		_show("formation")
 	)
 	return button

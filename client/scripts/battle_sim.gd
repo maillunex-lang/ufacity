@@ -13,23 +13,36 @@ const SLOTS := {
 	4: Vector2(2.4, 3.2),
 }
 
-static func fight(slots: Array, stage: int = 1) -> Dictionary:
+static func fight(slots: Array, stage: int = 1, levels: Dictionary = {}) -> Dictionary:
 	var left: Array = []
 	var right: Array = []
 	var safe_stage := maxi(1, stage)
 	for slot in range(5):
-		var model := str(slots[slot]) if slot < slots.size() else "swordsman"
-		if model != "priest":
-			model = "swordsman"
-		left.append(_player(slot, model))
+		var hero_id := str(slots[slot]) if slot < slots.size() else "temp_a"
+		var level := int(levels.get(hero_id, levels.get(_canon(hero_id), 1)))
+		left.append(_player(slot, hero_id, level))
 		right.append(_enemy(slot, safe_stage))
 	return _simulate(left, right, 1)
 
 
-static func _player(slot: int, model: String) -> Dictionary:
-	if model == "priest":
-		return {"slot": slot, "role": "ranger", "model": model, "hp": 90, "atk": 16, "def": 3, "speed": 1}
-	return {"slot": slot, "role": "tank", "model": "swordsman", "hp": 120, "atk": 20, "def": 6, "speed": 1}
+static func _canon(raw: String) -> String:
+	if raw == "swordsman" or raw == "temp_a":
+		return "temp_a"
+	if raw == "priest" or raw == "temp_b":
+		return "temp_b"
+	if raw == "temp_c":
+		return "temp_c"
+	return "temp_a"
+
+
+static func _player(slot: int, hero_id: String, level: int) -> Dictionary:
+	var canon := _canon(hero_id)
+	var safe_level := maxi(1, level)
+	if canon == "temp_b":
+		return {"slot": slot, "role": "ranger", "model": "priest", "hp": 90 + (safe_level - 1) * 20, "atk": 16 + (safe_level - 1) * 4, "def": 3, "speed": 1}
+	if canon == "temp_c":
+		return {"slot": slot, "role": "healer", "model": "priest", "hp": 100 + (safe_level - 1) * 20, "atk": 12 + (safe_level - 1) * 4, "def": 4, "speed": 1}
+	return {"slot": slot, "role": "tank", "model": "swordsman", "hp": 120 + (safe_level - 1) * 20, "atk": 20 + (safe_level - 1) * 4, "def": 6, "speed": 1}
 
 
 static func _enemy(slot: int, stage: int) -> Dictionary:

@@ -103,7 +103,7 @@ func _build_hud() -> void:
 
 func _load_log() -> void:
 	_fought_stage = maxi(1, Roster.stage)
-	var parsed: Dictionary = Sim.fight(Roster.slots, _fought_stage)
+	var parsed: Dictionary = Sim.fight(Roster.slots, _fought_stage, Roster.levels())
 	for unit in parsed.get("units", []):
 		_spawn(str(unit["id"]), str(unit.get("model", "TEMP")), int(unit.get("max_hp", unit.get("hp", 1))))
 	_events = parsed.get("events", [])
