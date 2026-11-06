@@ -43,11 +43,45 @@ var _goals := {}
 
 
 func _ready() -> void:
-	var camera := $Camera3D
-	camera.position = Vector3(0, 12, 16)
-	camera.look_at(Vector3(0, 1, 0))
+	_make_arena()
+	_frame_camera()
+	get_viewport().size_changed.connect(_frame_camera)
 	_build_hud()
 	_load_log()
+
+
+func _make_arena() -> void:
+	var old := get_node_or_null("Floor")
+	if old != null:
+		old.free()
+	var disc := CSGCylinder3D.new()
+	disc.radius = 8.2
+	disc.height = 0.28
+	disc.position = Vector3(0, -0.14, 0)
+	var stone := StandardMaterial3D.new()
+	stone.albedo_color = Color("6e675c")
+	disc.material = stone
+	add_child(disc)
+	var ground := CSGBox3D.new()
+	ground.size = Vector3(60, 0.2, 60)
+	ground.position = Vector3(0, -0.42, 0)
+	var field := StandardMaterial3D.new()
+	field.albedo_color = Color("343a34")
+	ground.material = field
+	add_child(ground)
+
+
+func _frame_camera() -> void:
+	var camera := $Camera3D
+	var view := get_viewport().get_visible_rect().size
+	var aspect := 0.56
+	if view.y > 1.0:
+		aspect = clampf(view.x / view.y, 0.4, 2.2)
+	var half_h := deg_to_rad(25.0)
+	var half_v := atan(tan(half_h) / aspect)
+	camera.fov = rad_to_deg(half_v * 2.0)
+	camera.position = Vector3(-22, 12.5, 0)
+	camera.look_at(Vector3(0, 0.4, 0))
 
 
 func _process(delta: float) -> void:
