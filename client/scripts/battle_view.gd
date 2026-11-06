@@ -200,7 +200,7 @@ func _refresh_hp(unit: Node3D) -> void:
 
 
 func _play(root: Node, clip: String) -> void:
-	var player := _find_player(root)
+	var player: AnimationPlayer = _find_player(root)
 	if player == null:
 		return
 	var model := str(root.get_meta("model_id", ""))
@@ -214,7 +214,7 @@ func _play(root: Node, clip: String) -> void:
 		player.play("idle")
 
 
-func _find_player(node: Node):
+func _find_player(node: Node) -> AnimationPlayer:
 	if node is AnimationPlayer:
 		return node
 	for child in node.get_children():

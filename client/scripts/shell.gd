@@ -160,7 +160,7 @@ func _show_more() -> void:
 			button.text = item[1]
 			button.position = Vector2(28, y)
 			button.size = Vector2(320, 64)
-			var target := page
+			var target: String = str(page)
 			button.pressed.connect(func() -> void: _show(target))
 			button.set_meta("shell_extra", true)
 			add_child(button)
