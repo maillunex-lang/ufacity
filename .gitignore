@@ -10,6 +10,7 @@ dist/*.apk
 *.apk
 *.aab
 *.exe
+client/android/
 
 # Signing
 *.keystore
