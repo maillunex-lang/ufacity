@@ -36,8 +36,8 @@ var _result: Label
 
 func _ready() -> void:
 	var camera := $Camera3D
-	camera.position = Vector3(0, 8, 11)
-	camera.look_at(Vector3(0, 0.5, 0))
+	camera.position = Vector3(0, 12, 16)
+	camera.look_at(Vector3(0, 1, 0))
 	_build_hud()
 	_load_log()
 
@@ -123,7 +123,12 @@ func _spawn(id: String, model: String, max_hp: int) -> void:
 	root.set_meta("max_hp", max_hp)
 	var used_glb := _attach_glb(root, model)
 	root.set_meta("has_glb", used_glb)
-	if not used_glb:
+	if used_glb:
+		var visual := root.get_child(0) as Node3D
+		visual.scale = Vector3(2, 2, 2)
+		if id.begins_with("R"):
+			visual.rotation.y = PI
+	else:
 		var mesh := MeshInstance3D.new()
 		var capsule := CapsuleMesh.new()
 		capsule.radius = 0.32
@@ -139,8 +144,9 @@ func _spawn(id: String, model: String, max_hp: int) -> void:
 	label.text = "%s\n%d/%d" % [_file_id(model), max_hp, max_hp]
 	if not used_glb:
 		label.text = "TEMP %s\n%d/%d" % [model, max_hp, max_hp]
-	label.position = Vector3(0, 2.1, 0)
+	label.position = Vector3(0, 3.2, 0)
 	label.font_size = 42
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	root.add_child(label)
 	add_child(root)
 	_units[id] = root
