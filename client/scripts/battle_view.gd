@@ -32,6 +32,11 @@ var _events: Array = []
 var _cursor := 0
 var _time := 0.0
 var _result: Label
+var _winner := "draw"
+var _fought_stage := 1
+var _left_hp := 0
+var _right_hp := 0
+var _stage_written := false
 
 
 func _ready() -> void:
@@ -49,6 +54,7 @@ func _process(delta: float) -> void:
 		_cursor += 1
 	if _cursor >= _events.size() and _events.size() > 0 and _result.visible == false:
 		_result.visible = true
+		_commit_stage()
 
 
 func _build_hud() -> void:
@@ -96,24 +102,35 @@ func _build_hud() -> void:
 
 
 func _load_log() -> void:
-	var parsed: Dictionary = Sim.fight(Roster.slots)
+	_fought_stage = maxi(1, Roster.stage)
+	var parsed: Dictionary = Sim.fight(Roster.slots, _fought_stage)
 	for unit in parsed.get("units", []):
 		_spawn(str(unit["id"]), str(unit.get("model", "TEMP")), int(unit.get("max_hp", unit.get("hp", 1))))
 	_events = parsed.get("events", [])
-	var winner := str(parsed.get("winner", "draw"))
-	var title := "Ничья"
-	if winner == "left":
-		title = "Победа"
-	elif winner == "right":
-		title = "Поражение"
-	var left_hp := 0
-	var right_hp := 0
+	_winner = str(parsed.get("winner", "draw"))
+	_left_hp = 0
+	_right_hp = 0
 	for unit in parsed.get("units", []):
 		if str(unit["id"]).begins_with("L"):
-			left_hp += int(unit["hp"])
+			_left_hp += int(unit["hp"])
 		else:
-			right_hp += int(unit["hp"])
-	_result.text = "%s\nСлева %d HP, справа %d HP. Награда не выдана." % [title, left_hp, right_hp]
+			_right_hp += int(unit["hp"])
+	_result.text = "Стадия %d" % _fought_stage
+
+
+func _commit_stage() -> void:
+	if _stage_written:
+		return
+	_stage_written = true
+	var title := "Ничья"
+	var note := "Стадия %d не изменилась." % _fought_stage
+	if _winner == "left":
+		Roster.advance_stage()
+		title = "Победа"
+		note = "Стадия %d пройдена. Дальше %d." % [_fought_stage, Roster.stage]
+	elif _winner == "right":
+		title = "Поражение"
+	_result.text = "%s\n%s\nСлева %d HP, справа %d HP. Золото не выдано." % [title, note, _left_hp, _right_hp]
 
 
 func _home(id: String) -> Vector3:

@@ -13,15 +13,16 @@ const SLOTS := {
 	4: Vector2(2.4, 3.2),
 }
 
-static func fight(slots: Array) -> Dictionary:
+static func fight(slots: Array, stage: int = 1) -> Dictionary:
 	var left: Array = []
 	var right: Array = []
+	var safe_stage := maxi(1, stage)
 	for slot in range(5):
 		var model := str(slots[slot]) if slot < slots.size() else "swordsman"
 		if model != "priest":
 			model = "swordsman"
 		left.append(_player(slot, model))
-		right.append(_enemy(slot))
+		right.append(_enemy(slot, safe_stage))
 	return _simulate(left, right, 1)
 
 
@@ -31,14 +32,14 @@ static func _player(slot: int, model: String) -> Dictionary:
 	return {"slot": slot, "role": "tank", "model": "swordsman", "hp": 120, "atk": 20, "def": 6, "speed": 1}
 
 
-static func _enemy(slot: int) -> Dictionary:
+static func _enemy(slot: int, stage: int) -> Dictionary:
 	var roles := ["tank", "warrior", "ranger", "mage", "healer"]
 	return {
 		"slot": slot,
 		"role": roles[slot],
 		"model": "priest",
-		"hp": 40,
-		"atk": 6,
+		"hp": 40 * stage,
+		"atk": 6 * stage,
 		"def": 1,
 		"speed": 1,
 	}

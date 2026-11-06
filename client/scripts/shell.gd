@@ -111,6 +111,10 @@ func _show(page: String) -> void:
 	var info: Array = PAGES[page]
 	_title.text = info[0]
 	_body.text = info[1]
+	if page == "city":
+		_body.text += "\nСтадия %d. Золото не копится." % Roster.stage
+	elif page == "campaign":
+		_body.text = "Стадия %d. Враги: жрецы, %d HP и удар %d. Победа откроет следующую, поражение оставит эту. Золото не копится." % [Roster.stage, 40 * Roster.stage, 6 * Roster.stage]
 	_clear_host()
 	_mark_bar()
 	if page == "city":
