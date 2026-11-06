@@ -250,7 +250,7 @@ func _commit_stage() -> void:
 		return
 	_stage_written = true
 	var title := "Ничья"
-	var note := "Стадия %d не изменилась." % _fought_stage
+	var note := "Стадия %d не пройдена: герои %d уровня, враги слишком толстые. Уровень поднимет сервер." % [_fought_stage, _lowest_level()]
 	if _winner == "left" and _fought_stage == Roster.stage:
 		Roster.advance_stage()
 		title = "Победа"
@@ -260,9 +260,17 @@ func _commit_stage() -> void:
 		note = "Повтор стадии %d. Кампания остаётся на %d." % [_fought_stage, Roster.stage]
 	elif _winner == "right":
 		title = "Поражение"
+		note = "Стадия %d не изменилась." % _fought_stage
 	_result_title.text = title
 	_result_body.text = "%s\nСлева %d HP, справа %d HP.\nЗолото не выдано." % [note, _left_hp, _right_hp]
 	_result_panel.visible = true
+
+
+func _lowest_level() -> int:
+	var lowest := 99
+	for hero_id in Roster.slots:
+		lowest = mini(lowest, int(Roster.combat(str(hero_id))["level"]))
+	return maxi(1, lowest)
 
 
 func _home(id: String) -> Vector3:

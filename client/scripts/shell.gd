@@ -145,8 +145,8 @@ func _show(page: String) -> void:
 	_chip_vip.text = "VIP %d" % Roster.vip
 	if page == "city":
 		_body.text += "\nСтадия %d. Золото не копится." % Roster.stage
-	elif page == "campaign":
-		_body.text = "Стадия %d. Враги: жрецы, %d HP и удар %d. Победа откроет следующую, поражение оставит эту. Золото не копится." % [Roster.stage, 40 * Roster.stage, 6 * Roster.stage]
+	elif page == "campaign" or page == "arena":
+		_body.text = "Стадия %d. Ниже состав врагов. Золото не копится." % Roster.stage
 	_clear_host()
 	_mark_bar()
 	if page == "city":
@@ -186,9 +186,7 @@ func _show(page: String) -> void:
 	elif page == "guild" or page == "dungeons":
 		_closed()
 	elif page == "campaign" or page == "arena":
-		_action("В бой", func() -> void:
-			get_tree().change_scene_to_file("res://scenes/battle.tscn")
-		)
+		_before_battle()
 	elif page == "preview":
 		_action("Открыть бой", func() -> void:
 			get_tree().change_scene_to_file("res://scenes/battle.tscn")
@@ -337,6 +335,37 @@ func _formation() -> void:
 	back.add_child(_slot_button(2))
 	back.add_child(_slot_button(3))
 	back.add_child(_slot_button(4))
+	var hint := _formation_hint()
+	if hint != "":
+		column.add_child(_center_label(hint))
+
+
+func _formation_hint() -> String:
+	var tanks := 0
+	var front_tanks := 0
+	for index in 5:
+		var row: Dictionary = Roster.combat(str(Roster.slots[index]))
+		if str(row["role"]) != "tank":
+			continue
+		tanks += 1
+		if index < 2:
+			front_tanks += 1
+	if tanks > 0 and front_tanks == 0:
+		return "Танков лучше поставить ближе к врагу."
+	return ""
+
+
+func _before_battle() -> void:
+	var column := _scroll_column()
+	var stage := maxi(1, Roster.stage)
+	var roles := ["Танк", "Воин", "Стрелок", "Маг", "Целитель"]
+	var line := ["Ближе к тебе", "Ближе к тебе", "Дальше", "Дальше", "Дальше"]
+	column.add_child(_center_label("Враги стадии %d" % stage))
+	for index in 5:
+		column.add_child(_card(roles[index], "Жрец. %s. %d HP, удар %d." % [line[index], 40 * stage, 6 * stage]))
+	column.add_child(_text_button("В бой", func() -> void:
+		get_tree().change_scene_to_file("res://scenes/battle.tscn")
+	))
 
 
 func _center_label(text: String) -> Label:
