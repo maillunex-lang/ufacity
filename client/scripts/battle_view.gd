@@ -152,9 +152,13 @@ func _spawn(id: String, model: String, max_hp: int) -> void:
 	root.set_meta("has_glb", used_glb)
 	if used_glb:
 		var visual := root.get_child(0) as Node3D
-		visual.scale = Vector3(2, 2, 2)
+		var file_id := _file_id(model)
+		var model_height := 1.7 if file_id == "swordsman" else 1.1
+		var fitted := 3.4 / model_height
+		visual.scale = Vector3(fitted, fitted, fitted)
 		if id.begins_with("R"):
 			visual.rotation.y = PI
+		_plant_feet(visual)
 	else:
 		var mesh := MeshInstance3D.new()
 		var capsule := CapsuleMesh.new()
@@ -171,7 +175,7 @@ func _spawn(id: String, model: String, max_hp: int) -> void:
 	label.text = "%s\n%d/%d" % [_file_id(model), max_hp, max_hp]
 	if not used_glb:
 		label.text = "TEMP %s\n%d/%d" % [model, max_hp, max_hp]
-	label.position = Vector3(0, 3.2, 0)
+	label.position = Vector3(0, 3.8, 0)
 	label.font_size = 42
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	root.add_child(label)
@@ -255,3 +259,39 @@ func _find_player(node: Node) -> AnimationPlayer:
 		if found != null:
 			return found
 	return null
+
+
+func _plant_feet(node: Node) -> void:
+	var player := _find_player(node)
+	var skeleton := node.find_child("Skeleton3D", true, false) as Skeleton3D
+	if player == null or skeleton == null:
+		return
+	var hips := -1
+	for index in skeleton.get_bone_count():
+		if str(skeleton.get_bone_name(index)).contains("Hips"):
+			hips = index
+	if hips < 0:
+		return
+	var rest: Vector3 = skeleton.get_bone_rest(hips).origin
+	for lib_name in player.get_animation_library_list():
+		var library := player.get_animation_library(lib_name)
+		for anim_name in library.get_animation_list():
+			var anim := library.get_animation(anim_name)
+			var copy := anim.duplicate()
+			var changed := false
+			for track in copy.get_track_count():
+				var path := str(copy.track_get_path(track))
+				if not path.contains("Hips") or copy.track_get_type(track) != Animation.TYPE_POSITION_3D:
+					continue
+				var keep_drop := str(anim_name) == "Dead"
+				for key in copy.track_get_key_count(track):
+					var value: Vector3 = copy.track_get_key_value(track, key)
+					value.x = rest.x
+					value.z = rest.z
+					if not keep_drop:
+						value.y = rest.y
+					copy.track_set_key_value(track, key, value)
+				changed = true
+			if changed:
+				library.remove_animation(anim_name)
+				library.add_animation(anim_name, copy)
