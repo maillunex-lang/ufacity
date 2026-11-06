@@ -54,19 +54,45 @@ func _process(delta: float) -> void:
 func _build_hud() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(margin)
+	var column := VBoxContainer.new()
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_theme_constant_override("separation", 12)
+	margin.add_child(column)
 	var back := Button.new()
 	back.text = "В город"
-	back.position = Vector2(24, 24)
+	back.custom_minimum_size = Vector2(180, 64)
+	back.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	back.pressed.connect(func() -> void:
 		get_tree().change_scene_to_file("res://scenes/main.tscn")
 	)
-	layer.add_child(back)
+	column.add_child(back)
 	_result = Label.new()
 	_result.visible = false
-	_result.position = Vector2(24, 90)
-	_result.size = Vector2(670, 160)
 	_result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	layer.add_child(_result)
+	_result.custom_minimum_size = Vector2(0, 80)
+	column.add_child(_result)
+	var apply := func() -> void:
+		var screen := DisplayServer.screen_get_size()
+		var safe := DisplayServer.get_display_safe_area()
+		var view := get_viewport().get_visible_rect().size
+		var top := 16
+		var left := 16
+		var right := 16
+		if screen.x > 0 and screen.y > 0 and view.x > 0.0 and view.y > 0.0:
+			var sx := view.x / float(screen.x)
+			var sy := view.y / float(screen.y)
+			left = int(safe.position.x * sx)
+			top = int(safe.position.y * sy)
+			right = int((screen.x - safe.position.x - safe.size.x) * sx)
+		margin.add_theme_constant_override("margin_left", maxi(left, 16))
+		margin.add_theme_constant_override("margin_top", maxi(top, 16))
+		margin.add_theme_constant_override("margin_right", maxi(right, 16))
+	apply.call()
+	get_viewport().size_changed.connect(apply)
 
 
 func _load_log() -> void:
