@@ -1,28 +1,31 @@
 name: android-apk
 
-# Ручной запуск. Этот файл ещё ни разу не выполнялся из записанного аудита.
-# Он не выпускает APK, пока в репозитории нет проверенного экспорта Godot.
-
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 
 jobs:
-  status:
-    runs-on: ubuntu-latest
+  apk:
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
-      - name: Record that export is not available yet
+      - name: Export debug APK
         run: |
-          mkdir -p dist
-          cat > dist/EXPORT_STATUS.txt << 'EOF'
-          NOT AN APK.
-          Godot editor and Android export templates were not available when this workflow was added.
-          A debug or release keystore must stay outside the repository.
-          Do not treat a green run of this job as an Android test.
-          EOF
+          mkdir -p build
+          docker run --rm \
+            -v "$PWD:/workspace" \
+            -w /workspace/client \
+            barichello/godot-ci:4.3 \
+            bash -lc 'godot --headless --import --quit && godot --headless --verbose --export-debug "Android" /workspace/build/ufacity-debug.apk'
+          test -s build/ufacity-debug.apk
+          ls -lh build/ufacity-debug.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: export-status
-          path: dist/EXPORT_STATUS.txt
+          name: ufacity-debug-apk
+          path: build/ufacity-debug.apk
+          if-no-files-found: error

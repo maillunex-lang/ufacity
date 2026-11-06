@@ -27,7 +27,7 @@ PYTHONPATH=. python -m pytest -q
 PYTHONPATH=. uvicorn app.main:app --host 127.0.0.1 --port 8080
 ```
 
-Godot-редактор этот проект ещё не открывал. Android APK не собирался.
+Godot-редактор этот проект ещё не открывал. Отладочный APK собирает GitHub при каждом пуше в `main`. Скачать его можно во вкладке Actions, артефакт `ufacity-debug-apk`. Это подпись для проверки, не для магазина. На телефоне нужно разрешить установку из этого источника.
 
 ## Claude Code и Codex
 
