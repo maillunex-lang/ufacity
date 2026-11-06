@@ -25,7 +25,7 @@ const CLIP_ALIAS := {
 	},
 }
 
-const LOG_PATH := "res://data/sample_log.json"
+const Sim = preload("res://scripts/battle_sim.gd")
 
 var _units := {}
 var _events: Array = []
@@ -70,20 +70,9 @@ func _build_hud() -> void:
 
 
 func _load_log() -> void:
-	if not FileAccess.file_exists(LOG_PATH):
-		push_warning("No sample log. Drop a GLB later; this scene only plays a log.")
-		return
-	var parsed = JSON.parse_string(FileAccess.get_file_as_string(LOG_PATH))
-	if typeof(parsed) != TYPE_DICTIONARY:
-		push_error("Sample log is not JSON")
-		return
+	var parsed: Dictionary = Sim.fight(Roster.slots)
 	for unit in parsed.get("units", []):
-		var unit_id := str(unit["id"])
-		var model := str(unit.get("model", "TEMP"))
-		var chosen := Roster.model_for(unit_id)
-		if chosen != "":
-			model = chosen
-		_spawn(unit_id, model, int(unit.get("max_hp", unit.get("hp", 1))))
+		_spawn(str(unit["id"]), str(unit.get("model", "TEMP")), int(unit.get("max_hp", unit.get("hp", 1))))
 	_events = parsed.get("events", [])
 	var winner := str(parsed.get("winner", "draw"))
 	var title := "Ничья"
@@ -91,7 +80,14 @@ func _load_log() -> void:
 		title = "Победа"
 	elif winner == "right":
 		title = "Поражение"
-	_result.text = title + "\nНаграда не выдана. Это просмотр лога, не серверное сохранение."
+	var left_hp := 0
+	var right_hp := 0
+	for unit in parsed.get("units", []):
+		if str(unit["id"]).begins_with("L"):
+			left_hp += int(unit["hp"])
+		else:
+			right_hp += int(unit["hp"])
+	_result.text = "%s\nСлева %d HP, справа %d HP. Награда не выдана." % [title, left_hp, right_hp]
 
 
 func _home(id: String) -> Vector3:
