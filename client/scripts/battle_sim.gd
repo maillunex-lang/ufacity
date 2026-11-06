@@ -6,11 +6,11 @@ const MELEE_RANGE := 1.6
 const RANGED_RANGE := 6.0
 const STEP := 1.4
 const SLOTS := {
-	0: Vector2(-3.2, 3.0),
-	1: Vector2(3.2, 3.0),
-	2: Vector2(-4.6, 6.4),
-	3: Vector2(0.0, 6.8),
-	4: Vector2(4.6, 6.4),
+	0: Vector2(2.8, 3.6),
+	1: Vector2(-2.8, 3.6),
+	2: Vector2(5.6, 7.2),
+	3: Vector2(0.0, 7.6),
+	4: Vector2(-5.6, 7.2),
 }
 
 static func fight(slots: Array, stage: int = 1, levels: Dictionary = {}) -> Dictionary:

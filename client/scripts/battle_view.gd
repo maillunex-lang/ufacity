@@ -61,8 +61,8 @@ func _make_arena() -> void:
 		old.free()
 	var disc := MeshInstance3D.new()
 	var circle := CylinderMesh.new()
-	circle.top_radius = 10.5
-	circle.bottom_radius = 10.5
+	circle.top_radius = 12.2
+	circle.bottom_radius = 12.2
 	circle.height = 0.28
 	circle.radial_segments = 64
 	disc.mesh = circle
@@ -86,11 +86,11 @@ func _frame_camera() -> void:
 	var aspect := 0.56
 	if view.y > 1.0:
 		aspect = clampf(view.x / view.y, 0.4, 2.2)
-	var half_h := deg_to_rad(31.0)
+	var half_h := deg_to_rad(36.0)
 	var half_v := atan(tan(half_h) / aspect)
 	camera.fov = rad_to_deg(half_v * 2.0)
-	camera.position = Vector3(-22, 12.5, 0)
-	camera.look_at(Vector3(0, 0.4, 0))
+	camera.position = Vector3(-18, 24, 0)
+	camera.look_at(Vector3(0, 0, 0))
 
 
 func _process(delta: float) -> void:
@@ -226,20 +226,20 @@ func _home(id: String) -> Vector3:
 	var z := 0.0
 	match slot:
 		0:
-			x = -3.2
-			z = 3.0
+			x = 2.8
+			z = 3.6
 		1:
-			x = 3.2
-			z = 3.0
+			x = -2.8
+			z = 3.6
 		2:
-			x = -4.6
-			z = 6.4
+			x = 5.6
+			z = 7.2
 		3:
 			x = 0.0
-			z = 6.8
+			z = 7.6
 		4:
-			x = 4.6
-			z = 6.4
+			x = -5.6
+			z = 7.2
 	if side == "L":
 		z = -z
 	return Vector3(x, 0, z)
@@ -311,6 +311,7 @@ func _apply(event: Dictionary) -> void:
 			return
 		var to: Array = event.get("to", [0, 0, 0])
 		_goals[str(event.get("unit", ""))] = Vector3(float(to[0]), float(to[1]), float(to[2]))
+		unit.set_meta("walk_until", _time + 0.28)
 		if not bool(unit.get_meta("down", false)) and str(unit.get_meta("pose", "")) != "attack" and str(unit.get_meta("pose", "")) != "skill":
 			_set_pose(unit, "move")
 	elif kind == "attack" or kind == "heal":
@@ -369,7 +370,12 @@ func _apply_rate() -> void:
 	for unit_id in _units.keys():
 		var player := _find_player(_units[unit_id])
 		if player != null:
-			player.speed_scale = float(_rate)
+			player.speed_scale = _pose_scale(_units[unit_id])
+
+
+func _pose_scale(unit: Node) -> float:
+	var slow := 0.75 if str(unit.get_meta("pose", "")) == "move" else 1.0
+	return slow * float(_rate)
 
 
 func _toggle_pause() -> void:
@@ -379,7 +385,7 @@ func _toggle_pause() -> void:
 		var player := _find_player(_units[unit_id])
 		if player == null:
 			continue
-		player.speed_scale = 0.0 if _paused else float(_rate)
+		player.speed_scale = 0.0 if _paused else _pose_scale(_units[unit_id])
 
 
 func _make_card() -> PanelContainer:
@@ -448,13 +454,13 @@ func _quad(size: Vector2, color: Color) -> MeshInstance3D:
 	return node
 
 
-func _face(unit: Node3D, flat: Vector3) -> void:
+func _face(unit: Node3D, flat: Vector3, delta: float) -> void:
 	if unit.get_child_count() == 0:
 		return
 	var visual := unit.get_child(0) as Node3D
 	if visual == null or visual.name == "Hp":
 		return
-	visual.rotation.y = atan2(flat.x, flat.z)
+	visual.rotation.y = lerp_angle(visual.rotation.y, atan2(flat.x, flat.z), minf(1.0, delta * 6.0))
 
 
 func _slide(delta: float) -> void:
@@ -463,12 +469,13 @@ func _slide(delta: float) -> void:
 		if not _goals.has(unit_id):
 			continue
 		var goal: Vector3 = _goals[unit_id]
-		unit.position = unit.position.move_toward(goal, delta * 1.6)
+		unit.position = unit.position.move_toward(goal, delta * 1.4)
 		var flat := goal - unit.position
 		flat.y = 0.0
-		var walking := flat.length() > 0.04
-		if walking:
-			_face(unit, flat)
+		var stepping := flat.length() > 0.05
+		var walking := stepping or float(unit.get_meta("walk_until", 0.0)) > _time
+		if stepping:
+			_face(unit, flat, delta)
 		var pose := str(unit.get_meta("pose", ""))
 		if bool(unit.get_meta("down", false)):
 			continue
@@ -513,6 +520,7 @@ func _play(root: Node, clip: String) -> void:
 		var anim := player.get_animation(actual)
 		if anim != null and (clip == "idle" or clip == "move"):
 			anim.loop_mode = Animation.LOOP_LINEAR
+		player.speed_scale = 0.75 * float(_rate) if clip == "move" else float(_rate)
 		player.play(actual)
 	elif player.has_animation("idle"):
 		player.play("idle")
