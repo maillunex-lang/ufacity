@@ -42,6 +42,9 @@ var _stage_written := false
 var _goals := {}
 var _rate := 1
 var _speed_note: Label
+var _paused := false
+var _pause_button: Button
+var _cards: Array = []
 
 
 func _ready() -> void:
@@ -56,13 +59,17 @@ func _make_arena() -> void:
 	var old := get_node_or_null("Floor")
 	if old != null:
 		old.free()
-	var disc := CSGCylinder3D.new()
-	disc.radius = 10.5
-	disc.height = 0.28
+	var disc := MeshInstance3D.new()
+	var circle := CylinderMesh.new()
+	circle.top_radius = 10.5
+	circle.bottom_radius = 10.5
+	circle.height = 0.28
+	circle.radial_segments = 64
+	disc.mesh = circle
 	disc.position = Vector3(0, -0.14, 0)
 	var stone := StandardMaterial3D.new()
 	stone.albedo_color = Color("6e675c")
-	disc.material = stone
+	disc.material_override = stone
 	add_child(disc)
 	var ground := CSGBox3D.new()
 	ground.size = Vector3(60, 0.2, 60)
@@ -87,6 +94,8 @@ func _frame_camera() -> void:
 
 
 func _process(delta: float) -> void:
+	if _paused:
+		return
 	var scaled := delta * float(_rate)
 	_time += scaled
 	while _cursor < _events.size() and float(_events[_cursor].get("t", 0.0)) <= _time:
@@ -132,6 +141,11 @@ func _build_hud() -> void:
 	sim.custom_minimum_size = Vector2(150, 56)
 	sim.pressed.connect(_try_sim)
 	speeds.add_child(sim)
+	_pause_button = Button.new()
+	_pause_button.text = "Пауза"
+	_pause_button.custom_minimum_size = Vector2(120, 56)
+	_pause_button.pressed.connect(_toggle_pause)
+	speeds.add_child(_pause_button)
 	_speed_note = Label.new()
 	_speed_note.text = "Скорость x1"
 	_speed_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -141,6 +155,15 @@ func _build_hud() -> void:
 	_result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_result.custom_minimum_size = Vector2(0, 80)
 	column.add_child(_result)
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_child(spacer)
+	var cards := HBoxContainer.new()
+	cards.add_theme_constant_override("separation", 6)
+	column.add_child(cards)
+	for _slot in 5:
+		cards.add_child(_make_card())
 	var apply := func() -> void:
 		var screen := DisplayServer.screen_get_size()
 		var safe := DisplayServer.get_display_safe_area()
@@ -148,15 +171,18 @@ func _build_hud() -> void:
 		var top := 16
 		var left := 16
 		var right := 16
+		var bottom := 16
 		if screen.x > 0 and screen.y > 0 and view.x > 0.0 and view.y > 0.0:
 			var sx := view.x / float(screen.x)
 			var sy := view.y / float(screen.y)
 			left = int(safe.position.x * sx)
 			top = int(safe.position.y * sy)
 			right = int((screen.x - safe.position.x - safe.size.x) * sx)
+			bottom = int((screen.y - safe.position.y - safe.size.y) * sy)
 		margin.add_theme_constant_override("margin_left", maxi(left, 16))
 		margin.add_theme_constant_override("margin_top", maxi(top, 16))
 		margin.add_theme_constant_override("margin_right", maxi(right, 16))
+		margin.add_theme_constant_override("margin_bottom", maxi(bottom, 12))
 	apply.call()
 	get_viewport().size_changed.connect(apply)
 
@@ -247,15 +273,8 @@ func _spawn(id: String, model: String, max_hp: int) -> void:
 		material.albedo_color = Color("e25b45") if model.contains("A") else Color("3d7ea6")
 		mesh.set_surface_override_material(0, material)
 		root.add_child(mesh)
-	var label := Label3D.new()
-	label.name = "Hp"
-	label.text = "%s\n%d/%d" % [_file_id(model), max_hp, max_hp]
-	if not used_glb:
-		label.text = "TEMP %s\n%d/%d" % [model, max_hp, max_hp]
-	label.position = Vector3(0, 3.8, 0)
-	label.font_size = 42
-	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	root.add_child(label)
+	root.set_meta("side", id.substr(0, 1))
+	_add_bar(root, id.begins_with("L"))
 	add_child(root)
 	_units[id] = root
 	_goals[id] = root.position
@@ -264,6 +283,8 @@ func _spawn(id: String, model: String, max_hp: int) -> void:
 	var player := _find_player(root)
 	if player != null:
 		player.speed_scale = float(_rate)
+	if id.begins_with("L"):
+		_fill_card(int(id.substr(1)), max_hp)
 
 
 func _file_id(model: String) -> String:
@@ -312,13 +333,18 @@ func _apply(event: Dictionary) -> void:
 
 
 func _refresh_hp(unit: Node3D) -> void:
-	var label := unit.get_node_or_null("Hp")
-	if label == null:
-		return
 	var hp := int(unit.get_meta("hp"))
-	var max_hp := int(unit.get_meta("max_hp"))
-	var lines := str(label.text).split("\n")
-	label.text = lines[0] + "\n%d/%d" % [hp, max_hp]
+	var max_hp := maxi(1, int(unit.get_meta("max_hp")))
+	var fill := unit.get_node_or_null("Hp/Fill") as MeshInstance3D
+	if fill != null:
+		var ratio := clampf(float(hp) / float(max_hp), 0.0, 1.0)
+		fill.scale.x = maxf(ratio, 0.001)
+		fill.position.x = (ratio - 1.0) * 0.71
+	var slot := int(unit.get_meta("card", -1))
+	if slot >= 0 and slot < _cards.size():
+		var bar: ProgressBar = _cards[slot]["bar"]
+		bar.max_value = max_hp
+		bar.value = hp
 
 
 func _try_rate(rate: int) -> void:
@@ -346,6 +372,91 @@ func _apply_rate() -> void:
 			player.speed_scale = float(_rate)
 
 
+func _toggle_pause() -> void:
+	_paused = not _paused
+	_pause_button.text = "Дальше" if _paused else "Пауза"
+	for unit_id in _units.keys():
+		var player := _find_player(_units[unit_id])
+		if player == null:
+			continue
+		player.speed_scale = 0.0 if _paused else float(_rate)
+
+
+func _make_card() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	panel.add_child(box)
+	var title := Label.new()
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.text = "—"
+	title.clip_text = true
+	box.add_child(title)
+	var level := Label.new()
+	level.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	level.text = "Ур. 1"
+	box.add_child(level)
+	var bar := ProgressBar.new()
+	bar.min_value = 0
+	bar.max_value = 1
+	bar.value = 1
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(0, 14)
+	box.add_child(bar)
+	_cards.append({"title": title, "level": level, "bar": bar})
+	return panel
+
+
+func _fill_card(slot: int, max_hp: int) -> void:
+	if slot < 0 or slot >= _cards.size() or slot >= Roster.slots.size():
+		return
+	var row: Dictionary = Roster.combat(str(Roster.slots[slot]))
+	var card: Dictionary = _cards[slot]
+	card["title"].text = str(row["name"])
+	card["level"].text = "Ур. %d" % int(row["level"])
+	var bar: ProgressBar = card["bar"]
+	bar.max_value = max_hp
+	bar.value = max_hp
+	var unit = _units.get("L%d" % slot)
+	if unit != null:
+		unit.set_meta("card", slot)
+
+
+func _add_bar(root: Node3D, friendly: bool) -> void:
+	var bar := Node3D.new()
+	bar.name = "Hp"
+	bar.position = Vector3(0, 3.5, 0)
+	bar.add_child(_quad(Vector2(1.5, 0.16), Color("1a1e18")))
+	var fill := _quad(Vector2(1.42, 0.1), Color("3f9d55") if friendly else Color("c4523a"))
+	fill.name = "Fill"
+	fill.position = Vector3(0, 0, 0.02)
+	bar.add_child(fill)
+	root.add_child(bar)
+
+
+func _quad(size: Vector2, color: Color) -> MeshInstance3D:
+	var node := MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	quad.size = size
+	node.mesh = quad
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	node.material_override = material
+	return node
+
+
+func _face(unit: Node3D, flat: Vector3) -> void:
+	if unit.get_child_count() == 0:
+		return
+	var visual := unit.get_child(0) as Node3D
+	if visual == null or visual.name == "Hp":
+		return
+	visual.rotation.y = atan2(flat.x, flat.z)
+
+
 func _slide(delta: float) -> void:
 	for unit_id in _units.keys():
 		var unit: Node3D = _units[unit_id]
@@ -353,7 +464,11 @@ func _slide(delta: float) -> void:
 			continue
 		var goal: Vector3 = _goals[unit_id]
 		unit.position = unit.position.move_toward(goal, delta * 1.6)
-		var walking := unit.position.distance_to(goal) > 0.04
+		var flat := goal - unit.position
+		flat.y = 0.0
+		var walking := flat.length() > 0.04
+		if walking:
+			_face(unit, flat)
 		var pose := str(unit.get_meta("pose", ""))
 		if bool(unit.get_meta("down", false)):
 			continue
