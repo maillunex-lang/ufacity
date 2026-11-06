@@ -44,7 +44,7 @@ var _chip_gold: Label
 var _chip_gems: Label
 var _chip_vip: Button
 var _parallax_far: Control
-var _parallax_near: Control
+var _city_art: TextureRect
 var _bobs: Array = []
 var _clock := 0.0
 
@@ -52,10 +52,21 @@ var _clock := 0.0
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	var background := ColorRect.new()
-	background.color = Color("1c2430")
+	background.color = Color("071018")
 	background.set_anchors_preset(Control.PRESET_FULL_RECT)
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(background)
+	_city_art = TextureRect.new()
+	_city_art.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_city_art.offset_left = -18
+	_city_art.offset_top = -8
+	_city_art.offset_right = 18
+	_city_art.offset_bottom = 8
+	_city_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_city_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_city_art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_city_art.texture = load("res://assets/ui/city.png")
+	add_child(_city_art)
 	_margin = MarginContainer.new()
 	_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(_margin)
@@ -90,8 +101,8 @@ func _ready() -> void:
 	top.add_child(money)
 	_chip_gold = _chip("Золото: нет")
 	_chip_gems = _chip("Алмазы: нет")
-	money.add_child(_chip_gold)
-	money.add_child(_chip_gems)
+	money.add_child(_money_pill(_chip_gold))
+	money.add_child(_money_pill(_chip_gems))
 	_body = Label.new()
 	_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_body.add_theme_color_override("font_color", Color("c5cdd8"))
@@ -159,6 +170,8 @@ func _show(page: String) -> void:
 	_body.text = info[1]
 	_title.visible = page != "city"
 	_body.visible = page != "city"
+	if _city_art != null:
+		_city_art.visible = page == "city"
 	_chip_gold.text = "Золото: нет"
 	_chip_gems.text = "Алмазы: нет"
 	_chip_vip.text = "VIP %d" % Roster.vip
@@ -219,13 +232,22 @@ func _show(page: String) -> void:
 
 func _mark_bar() -> void:
 	for button in _bar_buttons:
-		button.disabled = str(button.get_meta("page")) == _page
+		var active := str(button.get_meta("page")) == _page
+		button.disabled = active
+		var box := _panel_box()
+		box.content_margin_top = 8
+		box.content_margin_bottom = 8
+		if active:
+			box.bg_color = Color("16485f")
+			box.border_color = Color("f0d78c")
+			box.set_border_width_all(2)
+		button.add_theme_stylebox_override("normal", box)
+		button.add_theme_stylebox_override("disabled", box)
 
 
 func _clear_host() -> void:
 	_bobs.clear()
 	_parallax_far = null
-	_parallax_near = null
 	for child in _host.get_children():
 		_host.remove_child(child)
 		child.free()
@@ -240,10 +262,12 @@ func _process(delta: float) -> void:
 	if _page != "city" or _bobs.is_empty():
 		return
 	_clock += delta
-	if is_instance_valid(_parallax_far):
-		_parallax_far.position.x = sin(_clock * 0.18) * 16.0
-	if is_instance_valid(_parallax_near):
-		_parallax_near.position.x = sin(_clock * 0.22) * 8.0
+	if is_instance_valid(_city_art):
+		var drift := sin(_clock * 0.18) * 10.0
+		_city_art.offset_left = -18.0 + drift
+		_city_art.offset_right = 18.0 + drift
+		_city_art.offset_top = -8.0 + sin(_clock * 0.13) * 4.0
+		_city_art.offset_bottom = 8.0 + sin(_clock * 0.13) * 4.0
 	for bob in _bobs:
 		var node: Control = bob["node"]
 		if not is_instance_valid(node):
@@ -256,60 +280,53 @@ func _process(delta: float) -> void:
 func _city() -> void:
 	var root := Control.new()
 	_mount(root)
-	_parallax_far = _hill_layer(Color("24362c"), 220.0)
-	_parallax_near = _hill_layer(Color("31483a"), 140.0)
-	root.add_child(_parallax_far)
-	root.add_child(_parallax_near)
 	var spots := [
-		{"page": "fortress", "title": "Крепость", "color": "8d6a3a", "x": 0.50, "y": 0.02, "phase": 0.0},
-		{"page": "summon", "title": "Призыв", "color": "3d6d8c", "x": 0.18, "y": 0.26, "phase": 0.8},
-		{"page": "tavern", "title": "Таверна", "color": "7a4e3a", "x": 0.78, "y": 0.24, "phase": 1.4},
-		{"page": "guild", "title": "Гильдия", "color": "3e6b52", "x": 0.16, "y": 0.50, "phase": 2.0},
-		{"page": "arena", "title": "Арена", "color": "8a3d3d", "x": 0.50, "y": 0.48, "phase": 2.6},
-		{"page": "campaign", "title": "Кампания", "color": "4d5d86", "x": 0.82, "y": 0.50, "phase": 3.1},
-		{"page": "dungeons", "title": "Подземелья", "color": "4a4458", "x": 0.50, "y": 0.74, "phase": 3.8},
+		{"page": "fortress", "title": "Крепость", "x": 0.50, "y": 0.36, "phase": 0.0},
+		{"page": "summon", "title": "Призыв", "x": 0.34, "y": 0.50, "phase": 0.7},
+		{"page": "arena", "title": "Арена", "x": 0.78, "y": 0.46, "phase": 1.3},
+		{"page": "tavern", "title": "Таверна", "x": 0.32, "y": 0.63, "phase": 1.9},
+		{"page": "guild", "title": "Гильдия", "x": 0.74, "y": 0.61, "phase": 2.4},
+		{"page": "campaign", "title": "Кампания", "x": 0.30, "y": 0.78, "phase": 3.0},
+		{"page": "dungeons", "title": "Подземелья", "x": 0.72, "y": 0.76, "phase": 3.6},
 	]
 	for spot in spots:
-		var button := _building_button(str(spot["page"]), str(spot["title"]), Color(str(spot["color"])))
+		var button := _building_button(str(spot["page"]), str(spot["title"]))
 		root.add_child(button)
 		_bobs.append({"node": button, "x": float(spot["x"]), "y": float(spot["y"]), "phase": float(spot["phase"]), "top": 0.0, "bottom": 0.0})
 	var rail := VBoxContainer.new()
-	rail.add_theme_constant_override("separation", 6)
-	rail.anchor_left = 1.0
-	rail.anchor_right = 1.0
-	rail.anchor_top = 0.0
-	rail.anchor_bottom = 1.0
-	rail.offset_left = -104.0
-	rail.offset_right = -4.0
-	rail.offset_top = 4.0
-	rail.offset_bottom = -4.0
+	rail.add_theme_constant_override("separation", 4)
+	rail.anchor_left = 0.0
+	rail.anchor_right = 0.0
+	rail.anchor_top = 0.02
+	rail.anchor_bottom = 0.98
+	rail.offset_left = 0.0
+	rail.offset_right = 108.0
 	root.add_child(rail)
+	var rail_box := _panel_box()
+	rail_box.bg_color = Color(0.05, 0.08, 0.14, 0.72)
+	rail_box.border_color = Color("d4b15a")
+	rail_box.set_border_width_all(1)
+	var rail_panel := PanelContainer.new()
+	rail_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	rail_panel.add_theme_stylebox_override("panel", rail_box)
+	rail.add_child(rail_panel)
+	var rail_column := VBoxContainer.new()
+	rail_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	rail_column.add_theme_constant_override("separation", 4)
+	rail_panel.add_child(rail_column)
 	for item in [["events", "События"], ["tasks", "Задания"], ["rewards", "Награды"], ["pass", "Боевой пропуск"], ["offers", "Акции"]]:
 		var side := Button.new()
 		side.text = item[1]
-		side.custom_minimum_size = Vector2(96, 48)
+		side.custom_minimum_size = Vector2(96, 44)
 		side.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		side.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		side.clip_text = true
 		_style_button(side)
 		var side_page := str(item[0])
 		side.pressed.connect(func() -> void: _show(side_page))
-		rail.add_child(side)
+		rail_column.add_child(side)
 	root.resized.connect(_place_buildings)
 	_place_buildings()
-
-
-func _hill_layer(color: Color, height: float) -> ColorRect:
-	var hill := ColorRect.new()
-	hill.color = color
-	hill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hill.anchor_left = -0.08
-	hill.anchor_right = 1.08
-	hill.anchor_top = 1.0
-	hill.anchor_bottom = 1.0
-	hill.offset_top = -height
-	hill.offset_bottom = 24.0
-	return hill
 
 
 func _place_buildings() -> void:
@@ -317,17 +334,18 @@ func _place_buildings() -> void:
 		return
 	var node0: Control = _bobs[0]["node"]
 	var root := node0.get_parent() as Control
-	if root == null:
+	if root == null or root.size.x < 10.0:
 		return
-	var usable := maxf(root.size.x - 112.0, 180.0)
-	var height := maxf(root.size.y, 320.0)
-	var bw := clampf(usable * 0.30, 96.0, 150.0)
+	var origin := root.get_global_rect().position
+	var view := get_viewport().get_visible_rect().size
+	var bw := clampf(view.x * 0.34, 118.0, 210.0)
+	var bh := 46.0
 	for bob in _bobs:
 		var node: Control = bob["node"]
-		var left := float(bob["x"]) * usable - bw * 0.5
-		var top := float(bob["y"]) * (height - 96.0)
+		var left := float(bob["x"]) * view.x - origin.x - bw * 0.5
+		var top := float(bob["y"]) * view.y - origin.y - bh * 0.5
 		bob["top"] = top
-		bob["bottom"] = top + 84.0
+		bob["bottom"] = top + bh
 		node.anchor_left = 0.0
 		node.anchor_right = 0.0
 		node.anchor_top = 0.0
@@ -335,24 +353,24 @@ func _place_buildings() -> void:
 		node.offset_left = left
 		node.offset_right = left + bw
 		node.offset_top = top
-		node.offset_bottom = top + 84.0
+		node.offset_bottom = top + bh
 
 
-func _building_button(page: String, title: String, color: Color) -> Button:
+func _building_button(page: String, title: String) -> Button:
 	var button := Button.new()
 	button.text = title
-	button.add_theme_font_size_override("font_size", 18)
-	button.add_theme_color_override("font_color", Color("f4efe4"))
+	button.add_theme_font_size_override("font_size", 20)
+	button.add_theme_color_override("font_color", Color("f8efd2"))
 	var style := StyleBoxFlat.new()
-	style.bg_color = color
-	style.set_corner_radius_all(10)
-	style.content_margin_left = 6
-	style.content_margin_right = 6
-	style.content_margin_top = 16
-	style.content_margin_bottom = 8
+	style.bg_color = Color(0.05, 0.07, 0.12, 0.82)
+	style.border_color = Color("e2c36a")
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(18)
+	style.content_margin_left = 12
+	style.content_margin_right = 12
 	button.add_theme_stylebox_override("normal", style)
 	var hover := style.duplicate() as StyleBoxFlat
-	hover.bg_color = color.lightened(0.12)
+	hover.bg_color = Color(0.16, 0.12, 0.05, 0.9)
 	button.add_theme_stylebox_override("hover", hover)
 	button.add_theme_stylebox_override("pressed", hover)
 	button.pressed.connect(func() -> void: _show(page))
@@ -689,10 +707,22 @@ func _chip(text: String) -> Label:
 	return label
 
 
+func _money_pill(label: Label) -> PanelContainer:
+	var panel := PanelContainer.new()
+	var box := _panel_box()
+	box.content_margin_left = 10
+	box.content_margin_right = 10
+	box.content_margin_top = 2
+	box.content_margin_bottom = 2
+	panel.add_theme_stylebox_override("panel", box)
+	panel.add_child(label)
+	return panel
+
+
 func _panel_box() -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
-	box.bg_color = Color("243044")
-	box.border_color = Color("3d4a5c")
+	box.bg_color = Color(0.07, 0.10, 0.16, 0.92)
+	box.border_color = Color("c6a15b")
 	box.set_border_width_all(1)
 	box.set_corner_radius_all(12)
 	box.content_margin_left = 14
@@ -707,7 +737,7 @@ func _style_button(button: Button) -> void:
 	normal.content_margin_left = 8
 	normal.content_margin_right = 8
 	var hover := normal.duplicate() as StyleBoxFlat
-	hover.bg_color = Color("314158")
+	hover.bg_color = Color("2a2416")
 	var pressed := normal.duplicate() as StyleBoxFlat
 	pressed.bg_color = Color("1a2433")
 	button.add_theme_stylebox_override("normal", normal)
