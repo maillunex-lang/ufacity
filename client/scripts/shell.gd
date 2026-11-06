@@ -16,6 +16,12 @@ const PAGES := {
 	"profile": ["Профиль", "Карточка героя. Снаряжение пустое, уровень не растёт."],
 	"quests": ["Задания", "Список пуст. Наград нет."],
 	"settings": ["Настройки", "Аккаунт, язык и версия. Сервер с телефона не вызывается."],
+	"idle": ["Сбор", "Быстрый сбор наград простоя. Сервер не вызывается, золото не выдаётся."],
+	"mail": ["Почта", "Входящих нет. Вложения не выдаются."],
+	"chats": ["Чаты", "Три канала. Ни один не подключён, сообщения не отправляются."],
+	"chat_server": ["Чат сервера", "Общий канал. Соединения нет."],
+	"chat_guild": ["Чат гильдии", "Гильдии нет. Канал не подключён."],
+	"chat_pm": ["Личные", "Диалогов нет. Сообщения не отправляются."],
 	"more": ["Разделы", "Неготовые разделы открываются и пишут, чего в них нет."],
 }
 
@@ -156,6 +162,18 @@ func _show(page: String) -> void:
 		_vip()
 	elif page == "settings":
 		_settings()
+	elif page == "idle":
+		_idle()
+	elif page == "mail":
+		_mail()
+	elif page == "chats":
+		_chats()
+	elif page == "chat_server":
+		_chat("Чат сервера")
+	elif page == "chat_guild":
+		_chat("Чат гильдии")
+	elif page == "chat_pm":
+		_chat("Личные сообщения")
 	elif page == "inventory":
 		_inventory()
 	elif page == "quests":
@@ -191,13 +209,16 @@ func _mount(node: Control) -> void:
 
 
 func _city() -> void:
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_mount(scroll)
 	var column := VBoxContainer.new()
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.add_theme_constant_override("separation", 12)
-	_mount(column)
+	scroll.add_child(column)
 	var art := ColorRect.new()
 	art.color = Color("243044")
-	art.custom_minimum_size = Vector2(0, 180)
-	art.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	art.custom_minimum_size = Vector2(0, 140)
 	column.add_child(art)
 	var art_label := Label.new()
 	art_label.text = "Место рисунка города"
@@ -205,6 +226,13 @@ func _city() -> void:
 	art_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	art_label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	art.add_child(art_label)
+	var tools := HBoxContainer.new()
+	tools.add_theme_constant_override("separation", 8)
+	column.add_child(tools)
+	for item in [["idle", "Сбор"], ["mail", "Почта"], ["chats", "Чаты"]]:
+		var button := _nav_button(item[0], item[1])
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tools.add_child(button)
 	var grid := GridContainer.new()
 	grid.columns = 3
 	grid.add_theme_constant_override("h_separation", 10)
@@ -330,7 +358,7 @@ func _more() -> void:
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	column.add_theme_constant_override("separation", 10)
 	scroll.add_child(column)
-	for page in ["shop", "vip", "inventory", "settings", "quests", "guild", "dungeons", "preview", "campaign"]:
+	for page in ["idle", "mail", "chats", "shop", "vip", "inventory", "settings", "quests", "guild", "dungeons", "preview", "campaign"]:
 		column.add_child(_nav_button(page, PAGES[page][0]))
 
 
@@ -383,13 +411,54 @@ func _vip() -> void:
 	))
 
 
+func _idle() -> void:
+	var column := _scroll_column()
+	column.add_child(_card("Простой", "На сервере золото копится до 8 часов. Телефон это время не считает и сервер не вызывает."))
+	column.add_child(_card("Быстрый сбор", "На сервере кнопка сразу забирает накопленное. Здесь она ничего не даёт."))
+	column.add_child(_text_button("Собрать", func() -> void:
+		_body.text = "Не собрано. Золото не выдано."
+	))
+
+
+func _mail() -> void:
+	var column := _scroll_column()
+	column.add_child(_card("Входящие", "Писем нет."))
+	column.add_child(_text_button("Забрать вложения", func() -> void:
+		_body.text = "Забирать нечего. Награда не выдана."
+	))
+
+
+func _chats() -> void:
+	var column := _scroll_column()
+	column.add_child(_nav_button("chat_server", "Чат сервера"))
+	column.add_child(_nav_button("chat_guild", "Чат гильдии"))
+	column.add_child(_nav_button("chat_pm", "Личные сообщения"))
+
+
+func _chat(channel: String) -> void:
+	var column := _scroll_column()
+	column.add_child(_card("Лента", "Сообщений нет."))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	column.add_child(row)
+	var line := LineEdit.new()
+	line.placeholder_text = "Сообщение"
+	line.custom_minimum_size = Vector2(0, 64)
+	line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(line)
+	row.add_child(_text_button("Отправить", func() -> void:
+		line.text = ""
+		_body.text = "Не отправлено. %s не подключён." % channel
+	))
+
+
 func _settings() -> void:
 	var column := _scroll_column()
 	column.add_child(_card("Аккаунт", "Гость не создавался. Сервер не вызывался. Почта восстановления на сервере отвечает 501."))
 	column.add_child(_card("Язык", "Русский. Других языков в клиенте нет."))
 	column.add_child(_card("Звук", "Звука в игре нет, переключать нечего."))
 	column.add_child(_card("Бой", "Считается на телефоне из отряда. Награда не выдаётся."))
-	column.add_child(_card("Версия", "0.1.9, подпись debug, не для магазина."))
+	column.add_child(_card("Версия", "0.1.11, подпись debug, не для магазина."))
 
 
 func _inventory() -> void:
