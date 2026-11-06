@@ -279,17 +279,23 @@ func _heroes() -> void:
 	_mount(column)
 	for hero_id in Roster.owned_ids():
 		var row: Dictionary = Roster.combat(str(hero_id))
-		var role := "танк, подходит"
+		var role := "танк"
 		if str(row["role"]) == "ranger":
-			role = "стрелок, стоит"
+			role = "стрелок"
 		elif str(row["role"]) == "healer":
 			role = "целитель"
-		column.add_child(_card(str(row["name"]), "%s, %s. Уровень %d, копий %d. %d HP, удар %d." % [str(row["rarity"]), role, int(row["level"]), int(row["copies"]), int(row["hp"]), int(row["atk"])]))
 		var picked := str(hero_id)
-		column.add_child(_text_button("Профиль", func() -> void:
+		var button := Button.new()
+		button.text = "%s\n%s, уровень %d" % [str(row["name"]), role, int(row["level"])]
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.custom_minimum_size = Vector2(0, 96)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_style_button(button)
+		button.pressed.connect(func() -> void:
 			_open_hero = picked
 			_show("profile")
-		))
+		)
+		column.add_child(button)
 	column.add_child(_nav_button("preview", "3D в бою"))
 
 
@@ -385,7 +391,13 @@ func _profile() -> void:
 		role = "стрелок, стоит на месте"
 	elif str(row["role"]) == "healer":
 		role = "целитель"
-	column.add_child(_card(str(row["name"]), "%s. %s.\nУровень %d, копий %d. %d HP, удар %d, защита %d.\nId %s. Уровень не растёт: золото сервера не подключено." % [str(row["rarity"]), role, int(row["level"]), int(row["copies"]), int(row["hp"]), int(row["atk"]), int(row["def"]), str(row["id"])]))
+	column.add_child(_card("Имя", str(row["name"])))
+	column.add_child(_card("Роль", role))
+	column.add_child(_card("Уровень", str(int(row["level"]))))
+	column.add_child(_card("Здоровье", str(int(row["hp"]))))
+	column.add_child(_card("Атака", str(int(row["atk"]))))
+	column.add_child(_card("Защита", str(int(row["def"]))))
+	column.add_child(_card("Повышение", "Повысить нельзя. Это сделает сервер."))
 	column.add_child(_center_label("Снаряжение"))
 	for slot_name in ["Оружие", "Шлем", "Доспех", "Сапоги", "Кольцо", "Амулет", "Артефакт"]:
 		column.add_child(_card(slot_name, "Пусто. Надеть нельзя."))

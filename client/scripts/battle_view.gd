@@ -45,7 +45,9 @@ var _paused := false
 var _pause_button: Button
 var _cards: Array = []
 var _shots: Array = []
+var _numbers: Array = []
 var _quiet := false
+var _end_wait := -1.0
 var _result_panel: PanelContainer
 var _result_title: Label
 var _result_body: Label
@@ -76,13 +78,40 @@ func _make_arena() -> void:
 	stone.albedo_color = Color("6e675c")
 	disc.material_override = stone
 	add_child(disc)
+	var rim := MeshInstance3D.new()
+	var edge := CylinderMesh.new()
+	edge.top_radius = 13.15
+	edge.bottom_radius = 13.15
+	edge.height = 0.08
+	edge.radial_segments = 64
+	rim.mesh = edge
+	rim.position = Vector3(0, -0.05, 0)
+	var dark := StandardMaterial3D.new()
+	dark.albedo_color = Color("1a1e1c")
+	dark.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	rim.material_override = dark
+	add_child(rim)
 	var ground := CSGBox3D.new()
-	ground.size = Vector3(60, 0.2, 60)
-	ground.position = Vector3(0, -0.42, 0)
+	ground.size = Vector3(80, 0.2, 80)
+	ground.position = Vector3(0, -0.5, 0)
 	var field := StandardMaterial3D.new()
-	field.albedo_color = Color("343a34")
+	field.albedo_color = Color("171c19")
 	ground.material = field
 	add_child(ground)
+	var wall := MeshInstance3D.new()
+	var curtain := CylinderMesh.new()
+	curtain.top_radius = 26.0
+	curtain.bottom_radius = 26.0
+	curtain.height = 10.0
+	curtain.radial_segments = 48
+	curtain.flip_faces = true
+	wall.mesh = curtain
+	wall.position = Vector3(0, 3.2, 0)
+	var dusk := StandardMaterial3D.new()
+	dusk.albedo_color = Color("242a28")
+	dusk.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	wall.material_override = dusk
+	add_child(wall)
 
 
 func _frame_camera() -> void:
@@ -102,13 +131,19 @@ func _process(delta: float) -> void:
 	if _paused:
 		return
 	var scaled := delta * float(_rate)
-	_quiet = scaled > 0.4
-	_time += scaled
-	while _cursor < _events.size() and float(_events[_cursor].get("t", 0.0)) <= _time:
-		_apply(_events[_cursor])
-		_cursor += 1
-	if _cursor >= _events.size() and _events.size() > 0 and _result_panel.visible == false:
-		_commit_stage()
+	_quiet = scaled > 0.4 or _end_wait >= 0.0
+	if _end_wait < 0.0:
+		_time += scaled
+		while _cursor < _events.size() and float(_events[_cursor].get("t", 0.0)) <= _time:
+			_apply(_events[_cursor])
+			_cursor += 1
+		if _cursor >= _events.size() and _events.size() > 0 and _result_panel.visible == false and not _stage_written:
+			_end_wait = 0.5
+	else:
+		_end_wait -= delta
+		if _end_wait <= 0.0:
+			_clear_fx()
+			_commit_stage()
 	_slide(scaled)
 	_fx(delta)
 
@@ -207,6 +242,7 @@ func _load_log() -> void:
 			_left_hp += int(unit["hp"])
 		else:
 			_right_hp += int(unit["hp"])
+	_lay_roles()
 
 
 func _commit_stage() -> void:
@@ -306,6 +342,56 @@ func _mark(id: String, front: bool) -> void:
 	add_child(disc)
 
 
+func _lay_roles() -> void:
+	for unit_id in _units.keys():
+		var unit: Node3D = _units[unit_id]
+		var role := str(unit.get_meta("role", ""))
+		var kind := "sword"
+		if role == "ranger" or role == "mage":
+			kind = "bow"
+		elif role == "healer":
+			kind = "cross"
+		_glyph(unit.position, kind, str(unit_id))
+
+
+func _glyph(at: Vector3, kind: String, unit_id: String) -> void:
+	var root := Node3D.new()
+	root.name = "Role" + unit_id
+	root.position = at + Vector3(0, 0.1, 0)
+	if kind == "sword":
+		root.add_child(_sliver(Vector3(0.08, 0.04, 0.52), Vector3(0, 0, 0.06)))
+		root.add_child(_sliver(Vector3(0.3, 0.04, 0.08), Vector3(0, 0, -0.16)))
+	elif kind == "bow":
+		var left := _sliver(Vector3(0.06, 0.04, 0.46), Vector3(-0.1, 0, 0))
+		var right := _sliver(Vector3(0.06, 0.04, 0.46), Vector3(0.1, 0, 0))
+		left.rotation.y = 0.45
+		right.rotation.y = -0.45
+		root.add_child(left)
+		root.add_child(right)
+		root.add_child(_sliver(Vector3(0.025, 0.04, 0.34), Vector3(0, 0, 0)))
+	else:
+		root.add_child(_sliver(Vector3(0.08, 0.04, 0.4), Vector3.ZERO))
+		root.add_child(_sliver(Vector3(0.4, 0.04, 0.08), Vector3.ZERO))
+	add_child(root)
+
+
+func _sliver(size: Vector3, at: Vector3) -> MeshInstance3D:
+	var node := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = size
+	node.mesh = box
+	node.position = at
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = Color("f4efe4")
+	node.material_override = material
+	return node
+
+
+func _flash(unit: Node3D) -> void:
+	unit.set_meta("flash", 0.16)
+
+
 func _tint_enemy(node: Node) -> void:
 	if node is MeshInstance3D:
 		var tint := StandardMaterial3D.new()
@@ -346,8 +432,38 @@ func _bolt(src: Node3D, dst: Node3D, kind: String) -> void:
 	})
 
 
-func _flash(unit: Node3D) -> void:
-	unit.set_meta("flash", 0.16)
+func _float_number(unit: Node3D, amount: int, kind: String) -> void:
+	if amount == 0:
+		return
+	var label := Label3D.new()
+	label.text = "+%d" % amount if kind == "heal" else "-%d" % amount
+	label.font_size = 64
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.modulate = Color("d6f07a") if kind == "heal" else Color("ffd0c4")
+	label.outline_size = 10
+	label.outline_modulate = Color(0, 0, 0, 0.85)
+	label.position = unit.position + Vector3(0, 2.5, 0)
+	add_child(label)
+	_numbers.append({"node": label, "age": 0.0, "base": label.position})
+
+
+func _clear_fx() -> void:
+	for shot in _shots:
+		var bolt: Node = shot["node"]
+		if is_instance_valid(bolt):
+			bolt.queue_free()
+	_shots.clear()
+	for number in _numbers:
+		var label: Node = number["node"]
+		if is_instance_valid(label):
+			label.queue_free()
+	_numbers.clear()
+	for unit_id in _units.keys():
+		var unit: Node3D = _units[unit_id]
+		unit.set_meta("flash", 0.0)
+		var flash := unit.get_node_or_null("Flash") as MeshInstance3D
+		if flash != null:
+			flash.visible = false
 
 
 func _fx(delta: float) -> void:
@@ -359,7 +475,7 @@ func _fx(delta: float) -> void:
 		var origin: Vector3 = shot["from"]
 		var target: Vector3 = shot["to"]
 		bolt.position = origin.lerp(target, amount)
-		if origin.distance_to(target) > 0.2:
+		if amount < 0.95 and origin.distance_to(target) > 0.2:
 			bolt.look_at(target, Vector3.UP)
 		if amount >= 1.0:
 			bolt.queue_free()
@@ -381,6 +497,19 @@ func _fx(delta: float) -> void:
 		var material := flash.material_override as StandardMaterial3D
 		if material != null:
 			material.albedo_color = Color(1, 0.9, 0.75, left / 0.16)
+	var kept_numbers: Array = []
+	for number in _numbers:
+		number["age"] = float(number["age"]) + delta
+		var age := float(number["age"])
+		var label: Label3D = number["node"]
+		var base: Vector3 = number["base"]
+		label.position = base + Vector3(0, age * 1.1, 0)
+		label.modulate.a = clampf(1.0 - age / 0.85, 0.0, 1.0)
+		if age >= 0.85:
+			label.queue_free()
+		else:
+			kept_numbers.append(number)
+	_numbers = kept_numbers
 
 
 func _spawn(id: String, model: String, max_hp: int, role: String) -> void:
@@ -466,6 +595,7 @@ func _apply(event: Dictionary) -> void:
 			if not _quiet and src != null:
 				_bolt(src, dst, kind)
 				_flash(dst)
+				_float_number(dst, int(event.get("amount", 0)), kind)
 			if kind == "attack":
 				_set_pose(dst, "hit")
 	elif kind == "down":
