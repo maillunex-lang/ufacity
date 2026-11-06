@@ -12,6 +12,22 @@ if [ ! -f "$TEMPLATE_DIR/android_debug.apk" ]; then
 fi
 ls -lh "$TEMPLATE_DIR"/android_debug.apk
 
+if [ ! -f /workspace/client/android/build/build.gradle ]; then
+  rm -rf /tmp/android-src
+  mkdir -p /tmp/android-src /workspace/client/android
+  unzip -q "$TEMPLATE_DIR/android_source.zip" -d /tmp/android-src
+  if [ -f /tmp/android-src/build/build.gradle ]; then
+    cp -a /tmp/android-src/build /workspace/client/android/build
+  else
+    cp -a /tmp/android-src /workspace/client/android/build
+  fi
+fi
+test -f /workspace/client/android/build/build.gradle
+
+yes | sdkmanager --licenses >/tmp/sdk-licenses.txt || true
+sdkmanager "build-tools;34.0.0" "platforms;android-34"
+find /usr/lib/android-sdk/build-tools -name apksigner -o -name apksigner.bat | head
+
 if [ ! -f /root/debug.keystore ]; then
   keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android \
     -keystore /root/debug.keystore -storepass android \
