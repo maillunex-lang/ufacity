@@ -155,7 +155,7 @@ def simulate(left: list[dict], right: list[dict], seed: int = 1) -> dict:
         "reward_granted": False,
         "events": events,
         "units": [
-            {"id": u["id"], "model": u["model"], "hp": u["hp"], "role": u["role"]}
+            {"id": u["id"], "model": u["model"], "hp": u["hp"], "max_hp": u["max_hp"], "role": u["role"]}
             for u in units
         ],
     }

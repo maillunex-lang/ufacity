@@ -1,9 +1,11 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from app.accounts import Store
 from app.battle import simulate
 
-app = FastAPI(title="Ufacity", version="0.1.0")
+app = FastAPI(title="Ufacity", version="0.2.0")
+app.state.accounts = Store()
 
 
 class UnitIn(BaseModel):
@@ -24,6 +26,15 @@ class SimIn(BaseModel):
     right: list[UnitIn]
 
 
+class LoginIn(BaseModel):
+    login: str
+    password: str
+
+
+class FormationIn(BaseModel):
+    formation: list[str]
+
+
 def _dump(side: list[UnitIn]) -> list[dict]:
     return [
         {
@@ -39,6 +50,26 @@ def _dump(side: list[UnitIn]) -> list[dict]:
     ]
 
 
+def public_user(user: dict) -> dict:
+    progress = user["progress"]
+    return {
+        "id": user["id"],
+        "login": user["login"],
+        "kind": user["kind"],
+        "stage": progress["stage"],
+        "gold": progress["gold"],
+        "formation": progress["formation"],
+        "persisted": False,
+    }
+
+
+def _user_or_401(authorization: str) -> dict:
+    try:
+        return app.state.accounts.user_for(authorization)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+
 @app.get("/health")
 @app.get("/LunexGame/health")
 def health() -> dict:
@@ -52,3 +83,60 @@ def battle_sim(body: SimIn) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return log
+
+
+@app.post("/LunexGame/auth/guest")
+def auth_guest() -> dict:
+    token = app.state.accounts.guest()
+    user = app.state.accounts.user_for(f"Bearer {token}")
+    return {"token": token, "profile": public_user(user)}
+
+
+@app.post("/LunexGame/auth/register")
+def auth_register(body: LoginIn) -> dict:
+    try:
+        token = app.state.accounts.register(body.login, body.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    user = app.state.accounts.user_for(f"Bearer {token}")
+    return {"token": token, "profile": public_user(user)}
+
+
+@app.post("/LunexGame/auth/login")
+def auth_login(body: LoginIn) -> dict:
+    try:
+        token = app.state.accounts.login(body.login, body.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    user = app.state.accounts.user_for(f"Bearer {token}")
+    return {"token": token, "profile": public_user(user)}
+
+
+@app.post("/LunexGame/auth/bind")
+def auth_bind(body: LoginIn, authorization: str = Header(default="")) -> dict:
+    try:
+        user = app.state.accounts.bind(authorization, body.login, body.password)
+    except ValueError as exc:
+        status = 401 if str(exc) == "unauthorized" else 422
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    return public_user(user)
+
+
+@app.post("/LunexGame/auth/recover")
+def auth_recover() -> dict:
+    raise HTTPException(status_code=501, detail="mail delivery is not connected")
+
+
+@app.get("/LunexGame/me")
+def me(authorization: str = Header(default="")) -> dict:
+    return public_user(_user_or_401(authorization))
+
+
+@app.put("/LunexGame/me/formation")
+def save_formation(body: FormationIn, authorization: str = Header(default="")) -> dict:
+    user = _user_or_401(authorization)
+    try:
+        app.state.accounts.set_formation(user, body.formation)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return public_user(user)
