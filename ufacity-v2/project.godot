@@ -1,0 +1,22 @@
+; Ufacity V2 — clean project. Old prototype lives in ../client (untouched).
+config_version=5
+
+[application]
+
+config/name="Ufacity V2"
+config/description="Collectible 3D idle RPG, vertical 5v5 auto-battle."
+config/features=PackedStringArray("4.7", "Mobile")
+
+[display]
+
+window/size/viewport_width=720
+window/size/viewport_height=1280
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=1
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
