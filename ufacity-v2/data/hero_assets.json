@@ -1,0 +1,6 @@
+{
+  "_comment": "Role -> clip name in the GLB. Models face +Z. Hips root-motion must be stripped at load. Heights are native meters.",
+  "priest":    {"glb": "res://assets/heroes/priest.glb",    "height": 1.1, "idle": "Idle_11",      "run": "Running", "attack": "Attack",        "hit": "Hit_Reaction", "skill": "Charged_Spell_Cast",       "death": "Dead"},
+  "swordsman": {"glb": "res://assets/heroes/swordsman.glb", "height": 1.7, "idle": "Idle_9",       "run": "Running", "attack": "Thrust_Slash",  "hit": "",             "skill": "Jump_and_Slam_Back_Down", "death": "Dead", "borrow": {"hit": "priest/Hit_Reaction"}},
+  "uraldar":   {"glb": "res://assets/heroes/uraldar.glb",   "height": 1.8, "idle": "Combat_Stance","run": "Running", "attack": "Thrust_Slash",  "hit": "Hit_Reaction", "skill": "Skill_01",                "death": "Dead"}
+}
