@@ -39,4 +39,4 @@ Thumbs.db
 .vscode/
 
 # V2: textures that Godot auto-extracts from GLB (re-created on import)
-ufacity-v2/assets/heroes/*_Image_*
+ufacity-v2/art_src/heroes/*_Image_*
