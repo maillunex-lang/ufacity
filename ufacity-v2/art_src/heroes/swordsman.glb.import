@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://bg3pigivh3opd"
-path="res://.godot/imported/priest.glb-76485b21d1f40977a0a3a6fed97cf5d0.scn"
+uid="uid://mt4xubrneu3k"
+path="res://.godot/imported/swordsman.glb-86ceb0eead7145744621b0cc0c98afe3.scn"
 
 [deps]
 
-source_file="res://assets/heroes/priest.glb"
-dest_files=["res://.godot/imported/priest.glb-76485b21d1f40977a0a3a6fed97cf5d0.scn"]
+source_file="res://heroes/swordsman.glb"
+dest_files=["res://.godot/imported/swordsman.glb-86ceb0eead7145744621b0cc0c98afe3.scn"]
 
 [params]
 

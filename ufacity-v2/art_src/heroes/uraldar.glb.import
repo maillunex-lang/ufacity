@@ -4,12 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://ylrm1unqlfh4"
-path="res://.godot/imported/uraldar.glb-999a1af6299f21813a999be3979ad77e.scn"
+path="res://.godot/imported/uraldar.glb-1bb14207e6bd9788f633fdc198ea392e.scn"
 
 [deps]
 
-source_file="res://assets/heroes/uraldar.glb"
-dest_files=["res://.godot/imported/uraldar.glb-999a1af6299f21813a999be3979ad77e.scn"]
+source_file="res://heroes/uraldar.glb"
+dest_files=["res://.godot/imported/uraldar.glb-1bb14207e6bd9788f633fdc198ea392e.scn"]
 
 [params]
 

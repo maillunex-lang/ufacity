@@ -5,7 +5,7 @@ const HEROES := ["priest", "swordsman", "uraldar"]
 func _init() -> void:
 	var failed := false
 	for id in HEROES:
-		var ps: PackedScene = load("res://assets/heroes/%s.glb" % id)
+		var ps: PackedScene = load("res://heroes/%s.glb" % id)
 		if ps == null:
 			print("FAIL load ", id); failed = true; continue
 		var root: Node3D = ps.instantiate()

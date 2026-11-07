@@ -8,7 +8,7 @@ var report: Array[String] = []
 var failures := 0
 
 func _ready() -> void:
-	var manifest: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/hero_assets.json"))
+	var manifest: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://hero_assets.json"))
 	var players := {}
 	var x := 0.0
 	for id in manifest:
