@@ -1,7 +1,7 @@
 extends RefCounted
 
 const TICK := 0.1
-const LIMIT := 20.0
+const LIMIT := 90.0
 const MELEE_RANGE := 1.6
 const RANGED_RANGE := 6.0
 const STEP := 1.4

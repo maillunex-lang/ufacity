@@ -7,7 +7,7 @@ from pathlib import Path
 
 MELEE = {"tank", "warrior"}
 TICK = 0.1
-LIMIT = 20.0
+LIMIT = 90.0
 MELEE_RANGE = 1.6
 RANGED_RANGE = 6.0
 STEP = 1.4

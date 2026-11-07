@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/battle_camera_test.gd" id="1_test"]
+
+[node name="BattleCameraTest" type="Node3D"]
+script = ExtResource("1_test")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+projection = 1
+current = true
+size = 21.0
